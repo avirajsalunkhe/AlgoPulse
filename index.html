@@ -54,7 +54,7 @@
                 <div>
                     <h4 class="font-bold text-amber-500 mb-1">Configuration Warning</h4>
                     <p class="text-sm text-slate-400 leading-relaxed">
-                        The dashboard is struggling to connect. Please ensure <b>Anonymous Authentication</b> is enabled in your Firebase Console.
+                        The dashboard is struggling to connect. Please ensure <b>Anonymous Authentication</b> is enabled in your Firebase Console and your <b>FIREBASE_CONFIG</b> secret is set in GitHub.
                     </p>
                 </div>
             </div>
@@ -153,22 +153,12 @@
         let db;
 
         // Configuration Handling
-        // Hardcoded fallback using the provided config for immediate preview
-        const fallbackConfig = {
-            apiKey: "AIzaSyAzKP1YACeQiUPVbDbLjI2NNTroh6UpyAw",
-            authDomain: "algopulse-3163e.firebaseapp.com",
-            projectId: "algopulse-3163e",
-            storageBucket: "algopulse-3163e.firebasestorage.app",
-            messagingSenderId: "923704544190",
-            appId: "1:923704544190:web:42e0b7f3104ec36205c7ef",
-            measurementId: "G-V2QJ078SNW"
-        };
-
+        // THE PLACEHOLDER BELOW IS REPLACED BY GITHUB ACTIONS ON DEPLOYMENT
         const configStr = `GITHUB_FIREBASE_CONFIG_PLACEHOLDER`;
-        let config = fallbackConfig; // Default to provided config
+        let config = null;
 
         try {
-            // Priority 1: Canvas/Environment override
+            // Priority 1: Canvas Environment
             if (typeof __firebase_config !== 'undefined' && __firebase_config) {
                 config = JSON.parse(__firebase_config);
             } 
@@ -205,7 +195,7 @@
 
             if (!config || !config.apiKey) {
                 setStatus('error', 'Config Missing');
-                console.warn("AlgoPulse: No Firebase configuration found.");
+                console.warn("AlgoPulse: No Firebase configuration found. Please check GitHub Secrets.");
                 return;
             }
 
