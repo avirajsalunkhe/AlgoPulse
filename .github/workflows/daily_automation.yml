@@ -45,25 +45,29 @@ jobs:
         env:
           FIREBASE_CONFIG: ${{ secrets.FIREBASE_CONFIG }}
         run: |
-          # This replaces the placeholder with the actual JSON string from your secrets
-          # It only happens in the temporary action runner, not in your Git history!
+          # This replaces only the placeholder string itself, making it much more robust
           python -c "
           import os
-          f = open('index.html', 'r')
-          content = f.read()
-          f.close()
-          
-          config = os.environ.get('FIREBASE_CONFIG', '{}')
-          placeholder = 'configPlaceholder = \`GITHUB_FIREBASE_CONFIG_PLACEHOLDER\`'
-          replacement = f'configPlaceholder = \`{config}\`'
-          
-          if 'GITHUB_FIREBASE_CONFIG_PLACEHOLDER' in content:
-              new_content = content.replace(placeholder, replacement)
-              with open('index.html', 'w') as f:
-                  f.write(new_content)
-              print('✅ Configuration injected.')
-          else:
-              print('⚠️ Placeholder not found.')
+          try:
+              with open('index.html', 'r') as f:
+                  content = f.read()
+              
+              config = os.environ.get('FIREBASE_CONFIG', '{}')
+              # Find the unique placeholder string
+              placeholder = 'GITHUB_FIREBASE_CONFIG_PLACEHOLDER'
+              
+              if placeholder in content:
+                  # Replace the placeholder with the actual JSON config
+                  new_content = content.replace(placeholder, config)
+                  with open('index.html', 'w') as f:
+                      f.write(new_content)
+                  print('✅ Configuration successfully injected into index.html')
+              else:
+                  print('❌ Error: GITHUB_FIREBASE_CONFIG_PLACEHOLDER not found in index.html')
+                  exit(1)
+          except Exception as e:
+              print(f'❌ Injection Failed: {str(e)}')
+              exit(1)
           "
       - uses: actions/upload-pages-artifact@v3
         with:
