@@ -2,11 +2,21 @@ name: AlgoPulse - Daily Dispatch
 
 on:
   schedule:
-    - cron: '30 1 * * *'  # 7:00 AM IST
-    - cron: '30 14 * * *' # 8:00 PM IST
+    - cron: '30 1 * * *'  # 7:00 AM IST (Morning Challenge)
+    - cron: '30 14 * * *' # 8:00 PM IST (Evening Solution)
   push:
     branches: [main]
+  # This section creates the dropdown menu in the GitHub Actions UI
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Choose Dispatch Mode'
+        required: true
+        default: 'morning'
+        type: choice
+        options:
+          - morning
+          - solution
 
 permissions:
   contents: write
@@ -29,8 +39,14 @@ jobs:
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
-          HOUR=$(date +%H)
-          if [ "$HOUR" -lt "12" ]; then MODE="morning"; else MODE="solution"; fi
+          # If triggered manually, use the input. If scheduled, detect based on time.
+          if [ "${{ github.event.inputs.mode }}" != "" ]; then
+            MODE="${{ github.event.inputs.mode }}"
+          else
+            HOUR=$(date +%H)
+            if [ "$HOUR" -lt "12" ]; then MODE="morning"; else MODE="solution"; fi
+          fi
+          echo "🚀 Executing AlgoPulse in $MODE mode"
           python daily_question.py --mode $MODE
 
   deploy-interface:
@@ -45,28 +61,23 @@ jobs:
         env:
           FIREBASE_CONFIG: ${{ secrets.FIREBASE_CONFIG }}
         run: |
-          # This replaces only the placeholder string itself, making it much more robust
           python -c "
           import os
           try:
               with open('index.html', 'r') as f:
                   content = f.read()
-              
               config = os.environ.get('FIREBASE_CONFIG', '{}')
-              # Find the unique placeholder string
               placeholder = 'GITHUB_FIREBASE_CONFIG_PLACEHOLDER'
-              
               if placeholder in content:
-                  # Replace the placeholder with the actual JSON config
                   new_content = content.replace(placeholder, config)
                   with open('index.html', 'w') as f:
                       f.write(new_content)
-                  print('✅ Configuration successfully injected into index.html')
+                  print('✅ Configuration injected.')
               else:
-                  print('❌ Error: GITHUB_FIREBASE_CONFIG_PLACEHOLDER not found in index.html')
+                  print('❌ Placeholder not found.')
                   exit(1)
           except Exception as e:
-              print(f'❌ Injection Failed: {str(e)}')
+              print(f'❌ Error: {e}')
               exit(1)
           "
       - uses: actions/upload-pages-artifact@v3
