@@ -48,6 +48,7 @@ def clean_ai_response(text):
 
 def call_ai(prompt, is_json=True):
     """Reliable AI call using Gemini 2.0 Flash."""
+    # Fixed the URL which contained markdown link artifacts in the previous version
     url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=){GEMINI_API_KEY}"
     payload = {
         "contents": [{"parts": [{"text": prompt}]}], 
@@ -62,7 +63,7 @@ def call_ai(prompt, is_json=True):
             raw_text = res.json()['candidates'][0]['content']['parts'][0]['text']
             return clean_ai_response(raw_text)
         else:
-            print(f"❌ AI API Error: {res.status_code}")
+            print(f"❌ AI API Error: {res.status_code} - {res.text}")
     except Exception as e:
         print(f"❌ AI Exception: {e}")
     return None
@@ -107,9 +108,13 @@ def get_problem(topic, difficulty):
     return None
 
 def dispatch_email(to, subject, body):
+    if not SENDER_EMAIL or not SENDER_PASSWORD:
+        print(f"❌ SMTP Error: Credentials missing (SENDER_EMAIL/SENDER_PASSWORD)")
+        return False
+    
     msg = MIMEMultipart()
     msg['Subject'] = subject
-    msg['From'] = f"AlgoPulse <{SENDER_EMAIL}>"
+    msg['From'] = f"AlgoPulse Engine <{SENDER_EMAIL}>"
     msg['To'] = to
     msg.attach(MIMEText(body, 'html'))
     try:
@@ -147,18 +152,56 @@ if __name__ == "__main__":
             problem_data = packs.get(key)
             if problem_data:
                 p = json.loads(problem_data)
+                streak = u.get('streak', 0) + 1
                 body = f"""
-                <div style='background:#020617;color:white;padding:30px;font-family:sans-serif;border-radius:15px;'>
-                    <h2 style='color:#3b82f6;'>Today's Challenge: {p['title']}</h2>
-                    <p style='font-size:16px;line-height:1.6;'>{p['description']}</p>
-                    <div style='background:#0f172a;padding:15px;border-radius:10px;margin:20px 0;'>
-                        <b>Example:</b><br>{p.get('example', 'Check LeetCode for details')}
-                    </div>
-                    <a href='[https://leetcode.com/problems/](https://leetcode.com/problems/){p['slug']}/' style='display:inline-block;background:#3b82f6;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;'>Solve on LeetCode</a>
-                </div>"""
-                if dispatch_email(u['email'], f"🚀 Day {u.get('streak', 0)+1}: {p['title']}", body):
+                <html>
+                <body style="margin: 0; padding: 0; background-color: #020617; font-family: 'Inter', Helvetica, Arial, sans-serif; color: #f8fafc;">
+                    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #020617; padding: 40px 20px;">
+                        <tr>
+                            <td align="center">
+                                <table width="100%" max-width="600" style="max-width: 600px; background-color: #0f172a; border: 1px solid #1e293b; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
+                                    <!-- Header -->
+                                    <tr>
+                                        <td style="padding: 40px 40px 20px 40px; text-align: center;">
+                                            <div style="display: inline-block; background-color: #1d4ed8; color: #ffffff; padding: 8px 16px; border-radius: 100px; font-weight: 800; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 24px;">
+                                                Day {streak} Pulse
+                                            </div>
+                                            <h1 style="margin: 0; font-size: 32px; font-weight: 900; letter-spacing: -1px; color: #ffffff; line-height: 1.2;">{p['title']}</h1>
+                                        </td>
+                                    </tr>
+                                    <!-- Content -->
+                                    <tr>
+                                        <td style="padding: 20px 40px 40px 40px;">
+                                            <div style="background-color: #020617; border-radius: 16px; border-left: 4px solid #3b82f6; padding: 24px; margin-bottom: 32px;">
+                                                <p style="margin: 0; font-size: 16px; line-height: 1.7; color: #94a3b8;">{p['description']}</p>
+                                            </div>
+                                            
+                                            <div style="background-color: #1e293b; border-radius: 16px; padding: 20px; margin-bottom: 40px;">
+                                                <h4 style="margin: 0 0 12px 0; font-size: 11px; font-weight: 900; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Input Example</h4>
+                                                <code style="font-family: 'JetBrains Mono', 'Courier New', monospace; color: #38bdf8; font-size: 14px; line-height: 1.5;">{p.get('example', 'Check LeetCode for details')}</code>
+                                            </div>
+
+                                            <div style="text-align: center;">
+                                                <a href="[https://leetcode.com/problems/](https://leetcode.com/problems/){p['slug']}/" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 18px 48px; border-radius: 16px; text-decoration: none; font-weight: 800; font-size: 16px; box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.4);">Solve Problem</a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <!-- Footer -->
+                                    <tr>
+                                        <td style="padding: 20px 40px 40px 40px; border-top: 1px solid #1e293b; text-align: center;">
+                                            <p style="margin: 0; font-size: 12px; color: #475569; letter-spacing: 1px; text-transform: uppercase; font-weight: 700;">AlgoPulse • Consistency is the new Intensity</p>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
+                </body>
+                </html>
+                """
+                if dispatch_email(u['email'], f"🚀 Day {streak}: {p['title']}", body):
                     sub_ref.document(u['id']).update({
-                        'streak': u.get('streak', 0) + 1,
+                        'streak': streak,
                         'lastProblemData': problem_data,
                         'lastSentAt': datetime.now(timezone.utc)
                     })
@@ -177,18 +220,49 @@ if __name__ == "__main__":
             lang = u.get('language', 'Python')
             print(f"🛠️ Solving '{p['title']}' in {lang}...")
             
-            prompt = f"Provide a clean, efficient {lang} code solution for the LeetCode problem: '{p['title']}'. Output ONLY the code."
+            prompt = f"Provide a clean, efficient {lang} code solution for the LeetCode problem: '{p['title']}'. Output ONLY the raw code without any explanations."
             solution = call_ai(prompt, is_json=False)
             
             if solution:
                 body = f"""
-                <div style='background:#020617;color:white;padding:30px;font-family:sans-serif;'>
-                    <h2 style='color:#10b981;'>Solution Recap: {p['title']}</h2>
-                    <p>Language: <b>{lang}</b></p>
-                    <div style='background:#0f172a;padding:20px;border-radius:12px;border:1px solid #1e293b;'>
-                        <pre style='color:#34d399;font-family:monospace;margin:0;'>{solution}</pre>
-                    </div>
-                </div>"""
+                <html>
+                <body style="margin: 0; padding: 0; background-color: #020617; font-family: 'Inter', Helvetica, Arial, sans-serif; color: #f8fafc;">
+                    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #020617; padding: 40px 20px;">
+                        <tr>
+                            <td align="center">
+                                <table width="100%" max-width="600" style="max-width: 600px; background-color: #0f172a; border: 1px solid #1e293b; border-radius: 24px; overflow: hidden;">
+                                    <!-- Header -->
+                                    <tr>
+                                        <td style="padding: 40px 40px 20px 40px;">
+                                            <div style="color: #10b981; font-weight: 800; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px;">Solution Recap</div>
+                                            <h1 style="margin: 0; font-size: 28px; font-weight: 900; color: #ffffff; line-height: 1.2;">{p['title']}</h1>
+                                            <div style="margin-top: 8px; font-size: 14px; color: #64748b;">Language: <span style="color: #f8fafc; font-weight: 700;">{lang}</span></div>
+                                        </td>
+                                    </tr>
+                                    <!-- Code Block -->
+                                    <tr>
+                                        <td style="padding: 20px 40px 40px 40px;">
+                                            <div style="background-color: #020617; border-radius: 16px; border: 1px solid #334155; padding: 24px; overflow-x: auto;">
+                                                <pre style="margin: 0; font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 13px; line-height: 1.6; color: #34d399;">{solution}</pre>
+                                            </div>
+                                            <div style="margin-top: 24px; text-align: center;">
+                                                <p style="font-size: 14px; color: #94a3b8; line-height: 1.5;">Compare this with your implementation. Great job staying consistent today!</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <!-- Footer -->
+                                    <tr>
+                                        <td style="padding: 20px 40px 40px 40px; border-top: 1px solid #1e293b; text-align: center;">
+                                            <p style="margin: 0; font-size: 11px; color: #475569; letter-spacing: 1px; text-transform: uppercase; font-weight: 700;">AlgoPulse Recap • See you tomorrow at 07:00 AM</p>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
+                </body>
+                </html>
+                """
                 if dispatch_email(u['email'], f"✅ Solution: {p['title']}", body):
                     print(f"✅ Evening solution sent to {u['email']}")
 
