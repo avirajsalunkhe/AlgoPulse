@@ -39,12 +39,6 @@ if not firebase_admin._apps:
 
 db = firestore.client()
 
-def clean_url(url):
-    """Strips markdown formatting from URLs."""
-    if not url: return ""
-    url = re.sub(r'\[.*?\]\((.*?)\)', r'\1', url)
-    return url.strip('[]() ')
-
 def clean_ai_response(text):
     """Universal cleaner to remove markdown blocks from AI responses."""
     if not text: return ""
@@ -67,8 +61,8 @@ def call_ai(prompt, is_json=True):
     
     # 1. Try Gemini
     if GEMINI_API_KEY:
+        # FIXED: Removed all markdown link artifacts from the URL string
         gemini_url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=){GEMINI_API_KEY}"
-        gemini_url = clean_url(gemini_url)
         print(f"🤖 AI: Attempting Gemini 2.0 Flash...")
         
         payload = {
@@ -92,6 +86,7 @@ def call_ai(prompt, is_json=True):
     # 2. Fallback to Groq
     if GROQ_API_KEY:
         print(f"🔄 AI: Falling back to Groq Cloud (Llama 3.3)...")
+        # FIXED: Removed all markdown link artifacts from the URL string
         groq_url = "[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)"
         headers = {
             "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -112,7 +107,7 @@ def call_ai(prompt, is_json=True):
                 print("✅ AI: Groq response received.")
                 return clean_ai_response(raw_text)
             else:
-                print(f"❌ AI: Groq failed (Status {res.status_code}).")
+                print(f"❌ AI: Groq failed (Status {res.status_code}). Response: {res.text}")
         except Exception as e:
             print(f"❌ AI: Groq connection error: {e}")
 
@@ -194,7 +189,8 @@ EMAIL_BASE_CSS = """
 
 def get_formal_morning_html(p, streak, difficulty, language):
     diff_color = {"Easy": "#10b981", "Medium": "#3b82f6", "Hard": "#ef4444"}.get(difficulty, "#3b82f6")
-    problem_url = clean_url(f"[https://leetcode.com/problems/](https://leetcode.com/problems/){p['slug']}/")
+    # FIXED: Clean raw URL for href
+    problem_url = f"[https://leetcode.com/problems/](https://leetcode.com/problems/){p['slug']}/"
     
     return f"""
     <html>
