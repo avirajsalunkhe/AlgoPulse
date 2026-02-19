@@ -1,1 +1,2 @@
-requests firebase-admin
+requests
+firebase-admin
