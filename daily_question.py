@@ -16,6 +16,7 @@ from email.mime.multipart import MIMEMultipart
 # CRITICAL: Ensure this matches the APP_ID in your index.html exactly
 APP_ID = "leetcode-dsa-bot" 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 SENDER_EMAIL = os.getenv("EMAIL_SENDER")
 SENDER_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
@@ -39,14 +40,9 @@ if not firebase_admin._apps:
 db = firestore.client()
 
 def clean_url(url):
-    """
-    Strips markdown formatting from URLs. 
-    Prevents 'No connection adapters' error if strings are corrupted with [text](link).
-    """
+    """Strips markdown formatting from URLs."""
     if not url: return ""
-    # Remove markdown link syntax: [title](url) -> url
     url = re.sub(r'\[.*?\]\((.*?)\)', r'\1', url)
-    # Remove any leading/trailing brackets or parenthesis
     return url.strip('[]() ')
 
 def clean_ai_response(text):
@@ -63,33 +59,68 @@ def clean_ai_response(text):
     return text.strip()
 
 def call_ai(prompt, is_json=True):
-    """Reliable AI call using Gemini 2.0 Flash."""
-    raw_url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=){GEMINI_API_KEY}"
-    url = clean_url(raw_url)
+    """
+    Dual-provider AI call. 
+    Primary: Gemini 2.0 Flash
+    Fallback: Groq (Llama 3.3 70B)
+    """
     
-    print(f"🤖 AI: Requesting generation... (URL Protocol: {url[:8]})")
-    
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}], 
-        "generationConfig": {"temperature": 0.2}
-    }
-    if is_json: 
-        payload["generationConfig"]["responseMimeType"] = "application/json"
+    # 1. Try Gemini
+    if GEMINI_API_KEY:
+        gemini_url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=){GEMINI_API_KEY}"
+        gemini_url = clean_url(gemini_url)
+        print(f"🤖 AI: Attempting Gemini 2.0 Flash...")
         
-    try:
-        res = requests.post(url, json=payload, timeout=45)
-        if res.status_code == 200:
-            raw_text = res.json()['candidates'][0]['content']['parts'][0]['text']
-            print("✅ AI: Response received successfully.")
-            return clean_ai_response(raw_text)
-        else:
-            print(f"❌ AI: API Error {res.status_code}. Response: {res.text[:200]}")
-    except Exception as e:
-        print(f"❌ AI: Connection failed. This is usually due to a malformed URL string. Error: {e}")
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}], 
+            "generationConfig": {"temperature": 0.2}
+        }
+        if is_json: 
+            payload["generationConfig"]["responseMimeType"] = "application/json"
+            
+        try:
+            res = requests.post(gemini_url, json=payload, timeout=30)
+            if res.status_code == 200:
+                raw_text = res.json()['candidates'][0]['content']['parts'][0]['text']
+                print("✅ AI: Gemini response received.")
+                return clean_ai_response(raw_text)
+            else:
+                print(f"⚠️ AI: Gemini failed (Status {res.status_code}).")
+        except Exception as e:
+            print(f"⚠️ AI: Gemini connection error: {e}")
+
+    # 2. Fallback to Groq
+    if GROQ_API_KEY:
+        print(f"🔄 AI: Falling back to Groq Cloud (Llama 3.3)...")
+        groq_url = "[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)"
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.2
+        }
+        if is_json:
+            payload["response_format"] = {"type": "json_object"}
+            
+        try:
+            res = requests.post(groq_url, headers=headers, json=payload, timeout=30)
+            if res.status_code == 200:
+                raw_text = res.json()['choices'][0]['message']['content']
+                print("✅ AI: Groq response received.")
+                return clean_ai_response(raw_text)
+            else:
+                print(f"❌ AI: Groq failed (Status {res.status_code}).")
+        except Exception as e:
+            print(f"❌ AI: Groq connection error: {e}")
+
+    print("❌ AI: All AI providers failed.")
     return None
 
 def refill_bank(topic, difficulty):
-    print(f"🧠 Bank: Low on '{topic}' ({difficulty}). Generating 5 new problems...")
+    print(f"🧠 Bank: Low on '{topic}' ({difficulty}). Requesting 5 new problems...")
     prompt = (
         f"Generate exactly 5 unique LeetCode problems for '{topic}' at '{difficulty}' level. "
         "Return a JSON array of objects with: 'title', 'slug', 'description', 'constraints', 'example'. Output ONLY raw JSON."
@@ -100,7 +131,6 @@ def refill_bank(topic, difficulty):
         data = json.loads(raw)
         problems = data if isinstance(data, list) else data.get('problems', [])
         
-        bank_path = f"artifacts/{APP_ID}/public/data/question_bank"
         bank_ref = db.collection('artifacts').document(APP_ID).collection('public').document('data').collection('question_bank')
         
         for p in problems:
@@ -108,15 +138,15 @@ def refill_bank(topic, difficulty):
                 "topic": topic, "difficulty": difficulty, "problem_data": json.dumps(p),
                 "used": False, "createdAt": datetime.now(timezone.utc)
             })
-        print(f"✅ Bank: Refilled {len(problems)} problems at {bank_path}")
+        print(f"✅ Bank: Successfully stored {len(problems)} new problems in Firestore.")
         return True
     except Exception as e:
-        print(f"❌ Bank: JSON Parse/Save error: {e}")
+        print(f"❌ Bank: Failed to parse/save AI response: {e}")
         return False
 
 def get_problem(topic, difficulty):
     """Fetches one unused problem from the bank."""
-    print(f"🔍 Firestore: Searching for '{topic}' ({difficulty}) problem...")
+    print(f"🔍 Firestore: Looking for '{topic}' ({difficulty}) problem...")
     bank_ref = db.collection('artifacts').document(APP_ID).collection('public').document('data').collection('question_bank')
     
     query = bank_ref.where(filter=FieldFilter("topic", "==", topic)) \
@@ -125,20 +155,20 @@ def get_problem(topic, difficulty):
                     .limit(1).stream()
     
     for doc in query:
-        print(f"🎯 Firestore: Found problem document ID: {doc.id}")
+        print(f"🎯 Firestore: Problem found (ID: {doc.id})")
         bank_ref.document(doc.id).update({"used": True, "usedAt": datetime.now(timezone.utc)})
         return doc.to_dict()["problem_data"]
     
-    print("⚠️ Firestore: No unused problems in bank. Triggering refill...")
+    print("⚠️ Firestore: No unused problems. Triggering AI generation...")
     if refill_bank(topic, difficulty):
         time.sleep(2) # Consistency delay
         return get_problem(topic, difficulty)
     return None
 
 def dispatch_email(to, subject, body):
-    print(f"📨 Mail: Attempting delivery to {to}...")
+    print(f"📨 Mail: Dispatching to {to}...")
     if not SENDER_EMAIL or not SENDER_PASSWORD:
-        print("❌ Mail: Credentials missing (EMAIL_SENDER/EMAIL_PASSWORD secrets).")
+        print("❌ Mail: SMTP credentials missing in secrets.")
         return False
     
     msg = MIMEMultipart()
@@ -150,10 +180,10 @@ def dispatch_email(to, subject, body):
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as s:
             s.login(SENDER_EMAIL, SENDER_PASSWORD)
             s.sendmail(SENDER_EMAIL, to, msg.as_string())
-        print(f"✅ Mail: Successfully delivered to {to}")
+        print(f"✅ Mail: Delivered to {to}")
         return True
     except Exception as e:
-        print(f"❌ Mail: SMTP failure for {to}. Error: {e}")
+        print(f"❌ Mail: Delivery failed for {to}: {e}")
         return False
 
 # --- Email Styling Helpers ---
@@ -164,7 +194,6 @@ EMAIL_BASE_CSS = """
 
 def get_formal_morning_html(p, streak, difficulty, language):
     diff_color = {"Easy": "#10b981", "Medium": "#3b82f6", "Hard": "#ef4444"}.get(difficulty, "#3b82f6")
-    # Using clean_url on the href for safety
     problem_url = clean_url(f"[https://leetcode.com/problems/](https://leetcode.com/problems/){p['slug']}/")
     
     return f"""
@@ -212,13 +241,9 @@ if __name__ == "__main__":
     
     print(f"🚀 MODE: {mode.upper()}")
     
-    # Path Diagnostics
-    sub_path = f"artifacts/{APP_ID}/public/data/subscribers"
-    print(f"📂 Firestore Path: {sub_path}")
-    
     sub_ref = db.collection('artifacts').document(APP_ID).collection('public').document('data').collection('subscribers')
     
-    # 2. Detailed Subscriber Query
+    # Detailed Subscriber Query
     all_docs = sub_ref.stream()
     sub_list = []
     total_found = 0
@@ -229,7 +254,7 @@ if __name__ == "__main__":
         if data.get('status') == 'active':
             sub_list.append({**data, 'id': doc.id})
             
-    print(f"👥 Database: Found {total_found} total documents. {len(sub_list)} are 'active'.")
+    print(f"👥 Database: Total {total_found} docs found, {len(sub_list)} are active.")
 
     if not sub_list:
         print("🛑 STOP: No active subscribers to process.")
@@ -237,7 +262,7 @@ if __name__ == "__main__":
 
     if mode == "morning":
         for u in sub_list:
-            print(f"\n👉 Processing User: {u['email']}")
+            print(f"\n👉 User: {u['email']}")
             t = u.get('topic', 'LogicBuilding')
             d = u.get('difficulty', 'Medium')
             
@@ -253,26 +278,30 @@ if __name__ == "__main__":
                         'lastProblemData': problem_data,
                         'lastSentAt': datetime.now(timezone.utc)
                     })
-                    print(f"✅ Success: Updated user streak and lastProblemData.")
+                    print(f"✅ Success: Problem delivered and streak updated.")
             else:
-                print(f"❌ Failed: Could not retrieve or generate problem for Track: {t}_{d}")
+                print(f"❌ Failed: AI and Bank both failed for track {t}_{d}")
 
     elif mode == "solution":
         for u in sub_list:
-            print(f"\n👉 Processing Solution for: {u['email']}")
+            print(f"\n👉 Solution for: {u['email']}")
             p_data = u.get('lastProblemData')
             if not p_data:
-                print(f"⚠️ Warning: User has no 'lastProblemData'. (Morning run may have failed or was never run).")
+                print(f"⚠️ Warning: User record missing 'lastProblemData'.")
                 continue
             
             p = json.loads(p_data)
             lang = u.get('language', 'Python')
-            prompt = f"Provide a professional {lang} solution for LeetCode: '{p['title']}'. Code only."
+            prompt = f"Provide a professional {lang} solution for LeetCode: '{p['title']}'. Code only, no explanations."
             
             sol_code = call_ai(prompt, is_json=False)
             if sol_code:
-                # Reuse formal styles for solution
-                body = f"<pre style='background:#f8fafc; padding:20px; border-radius:8px;'>{sol_code}</pre>"
+                body = f"""
+                <div style="font-family: sans-serif; padding: 20px; color: #1a202c;">
+                    <h2>Solution: {p['title']}</h2>
+                    <p>Language: <b>{lang}</b></p>
+                    <pre style='background:#f8fafc; padding:20px; border-radius:8px; border:1px solid #e2e8f0;'>{sol_code}</pre>
+                </div>"""
                 dispatch_email(u['email'], f"✅ Solution: {p['title']}", body)
 
     print(f"\n--- AlgoPulse Dispatch Finished ---")
