@@ -46,16 +46,15 @@
                 <p class="text-slate-400 max-w-2xl text-lg leading-relaxed">Master logic and DSA with a curated problem at 7 AM and an optimized solution at 8 PM daily.</p>
             </section>
 
-            <!-- Configuration Alert -->
+            <!-- Configuration Alert (Hidden when connected) -->
             <div id="setup-warning" class="hidden mb-10 bg-amber-950/20 border border-amber-800/50 p-6 rounded-3xl flex gap-4 items-start">
                 <div class="bg-amber-500/10 p-2 rounded-lg text-amber-500">
                     <i data-lucide="alert-triangle" class="w-5 h-5"></i>
                 </div>
                 <div>
-                    <h4 class="font-bold text-amber-500 mb-1">Configuration Required</h4>
+                    <h4 class="font-bold text-amber-500 mb-1">Configuration Warning</h4>
                     <p class="text-sm text-slate-400 leading-relaxed">
-                        The dashboard is currently disconnected because the Firebase config is missing. 
-                        If you are seeing this on GitHub Pages, ensure you've added the <b>FIREBASE_CONFIG</b> secret and the workflow has completed.
+                        The dashboard is struggling to connect. Please ensure <b>Anonymous Authentication</b> is enabled in your Firebase Console.
                     </p>
                 </div>
             </div>
@@ -136,7 +135,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 
     <script>
-        // MUST match the APP_ID in your daily_question.py
         const APP_ID = 'leetcode-dsa-bot';
         const TOPICS = [
             { id: 'LogicBuilding', name: 'Logic Building', icon: 'brain', color: 'text-amber-400' },
@@ -155,16 +153,26 @@
         let db;
 
         // Configuration Handling
-        // THE FOLLOWING PLACEHOLDER IS REPLACED DURING GITHUB DEPLOYMENT
+        // Hardcoded fallback using the provided config for immediate preview
+        const fallbackConfig = {
+            apiKey: "AIzaSyAzKP1YACeQiUPVbDbLjI2NNTroh6UpyAw",
+            authDomain: "algopulse-3163e.firebaseapp.com",
+            projectId: "algopulse-3163e",
+            storageBucket: "algopulse-3163e.firebasestorage.app",
+            messagingSenderId: "923704544190",
+            appId: "1:923704544190:web:42e0b7f3104ec36205c7ef",
+            measurementId: "G-V2QJ078SNW"
+        };
+
         const configStr = `GITHUB_FIREBASE_CONFIG_PLACEHOLDER`;
-        let config = null;
+        let config = fallbackConfig; // Default to provided config
 
         try {
-            // Priority 1: Canvas Environment
+            // Priority 1: Canvas/Environment override
             if (typeof __firebase_config !== 'undefined' && __firebase_config) {
                 config = JSON.parse(__firebase_config);
             } 
-            // Priority 2: Injected Config
+            // Priority 2: GitHub Action replacement
             else if (configStr && configStr.startsWith('{')) {
                 config = JSON.parse(configStr);
             }
@@ -195,11 +203,9 @@
             renderTopics();
             if (window.lucide) lucide.createIcons();
 
-            // Detect missing configuration
-            if (!config) {
+            if (!config || !config.apiKey) {
                 setStatus('error', 'Config Missing');
-                document.getElementById('setup-warning').classList.remove('hidden');
-                console.warn("AlgoPulse: No Firebase configuration found. Check your GitHub Secrets.");
+                console.warn("AlgoPulse: No Firebase configuration found.");
                 return;
             }
 
@@ -214,6 +220,7 @@
                 await auth.signInAnonymously();
                 
                 setStatus('success', 'Live Feed');
+                document.getElementById('setup-warning').classList.add('hidden');
                 
                 // Real-time counter
                 db.collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('subscribers')
@@ -222,13 +229,15 @@
                     }, err => {
                         console.error("AlgoPulse: Snapshot error:", err);
                         if (err.code === 'permission-denied') {
-                            setStatus('error', 'Database Denied');
+                            setStatus('error', 'Permission Denied');
+                            document.getElementById('setup-warning').classList.remove('hidden');
                         }
                     });
 
             } catch(e) {
                 console.error("AlgoPulse: Connection Error:", e);
                 setStatus('error', e.code || 'Auth Error');
+                document.getElementById('setup-warning').classList.remove('hidden');
             }
         }
 
