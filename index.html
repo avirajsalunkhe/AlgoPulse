@@ -46,6 +46,20 @@
                 <p class="text-slate-400 max-w-2xl text-lg leading-relaxed">Master logic and DSA with a curated problem at 7 AM and an optimized solution at 8 PM daily.</p>
             </section>
 
+            <!-- Configuration Alert -->
+            <div id="setup-warning" class="hidden mb-10 bg-amber-950/20 border border-amber-800/50 p-6 rounded-3xl flex gap-4 items-start">
+                <div class="bg-amber-500/10 p-2 rounded-lg text-amber-500">
+                    <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h4 class="font-bold text-amber-500 mb-1">Configuration Required</h4>
+                    <p class="text-sm text-slate-400 leading-relaxed">
+                        The dashboard is currently disconnected because the Firebase config is missing. 
+                        If you are seeing this on GitHub Pages, ensure you've added the <b>FIREBASE_CONFIG</b> secret and the workflow has completed.
+                    </p>
+                </div>
+            </div>
+
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-12">
                 <div class="lg:col-span-8 space-y-10">
                     <div>
@@ -93,17 +107,6 @@
                             <span class="text-xs font-bold text-emerald-500 uppercase tracking-widest">Users</span>
                         </div>
                     </div>
-                    
-                    <!-- New Help Card -->
-                    <div id="setup-help" class="hidden bg-red-900/10 border border-red-900/50 rounded-3xl p-6">
-                        <div class="flex items-center gap-2 text-red-500 mb-2">
-                            <i data-lucide="alert-circle" class="w-4 h-4"></i>
-                            <h4 class="text-xs font-black uppercase tracking-widest">Setup Required</h4>
-                        </div>
-                        <p class="text-[11px] text-slate-400 leading-relaxed">
-                            Your Firebase configuration is missing. If you are seeing this on GitHub Pages, ensure your <b>FIREBASE_CONFIG</b> secret is set in repository settings and the Action has run.
-                        </p>
-                    </div>
                 </div>
             </div>
         </main>
@@ -123,7 +126,7 @@
         </main>
 
         <footer class="mt-32 pt-10 border-t border-slate-900 text-center">
-            <p class="text-slate-600 text-[10px] font-black uppercase tracking-widest italic">AlgoPulse Engine • Built by Aviraj Salunkhe</p>
+            <p class="text-slate-600 text-[10px] font-black uppercase tracking-widest italic text-center">AlgoPulse Engine • Built by Aviraj Salunkhe</p>
         </footer>
     </div>
 
@@ -133,6 +136,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 
     <script>
+        // MUST match the APP_ID in your daily_question.py
         const APP_ID = 'leetcode-dsa-bot';
         const TOPICS = [
             { id: 'LogicBuilding', name: 'Logic Building', icon: 'brain', color: 'text-amber-400' },
@@ -151,22 +155,20 @@
         let db;
 
         // Configuration Handling
-        // This string is replaced by GitHub Actions during deployment
+        // THE FOLLOWING PLACEHOLDER IS REPLACED DURING GITHUB DEPLOYMENT
         const configStr = `GITHUB_FIREBASE_CONFIG_PLACEHOLDER`;
         let config = null;
 
         try {
-            // Priority 1: Canvas/Preview Environment
+            // Priority 1: Canvas Environment
             if (typeof __firebase_config !== 'undefined' && __firebase_config) {
                 config = JSON.parse(__firebase_config);
             } 
-            // Priority 2: GitHub Injected Config (checks if placeholder was actually replaced)
+            // Priority 2: Injected Config
             else if (configStr && configStr.startsWith('{')) {
                 config = JSON.parse(configStr);
             }
-        } catch(e) { 
-            console.error("AlgoPulse: Config Parse Error:", e); 
-        }
+        } catch(e) { console.error("AlgoPulse: Config Parse Error:", e); }
 
         function setStatus(type, text) {
             const dot = document.getElementById('status-dot');
@@ -178,10 +180,13 @@
                 dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]";
                 statusText.className = "text-[10px] text-emerald-500 font-black uppercase tracking-widest";
             } else if (type === 'error') {
-                dot.className = "w-1.5 h-1.5 rounded-full bg-red-500";
+                dot.className = "w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]";
                 statusText.className = "text-[10px] text-red-500 font-black uppercase tracking-widest";
+            } else if (type === 'pending') {
+                dot.className = "w-1.5 h-1.5 rounded-full bg-blue-500 status-pulse shadow-[0_0_8px_rgba(59,130,246,0.5)]";
+                statusText.className = "text-[10px] text-blue-500 font-black uppercase tracking-widest";
             } else {
-                dot.className = "w-1.5 h-1.5 rounded-full bg-slate-700 status-pulse";
+                dot.className = "w-1.5 h-1.5 rounded-full bg-slate-700 shadow-none";
                 statusText.className = "text-[10px] text-slate-500 font-black uppercase tracking-widest";
             }
         }
@@ -190,10 +195,10 @@
             renderTopics();
             if (window.lucide) lucide.createIcons();
 
-            // Check if config exists
+            // Detect missing configuration
             if (!config) {
                 setStatus('error', 'Config Missing');
-                document.getElementById('setup-help').classList.remove('hidden');
+                document.getElementById('setup-warning').classList.remove('hidden');
                 console.warn("AlgoPulse: No Firebase configuration found. Check your GitHub Secrets.");
                 return;
             }
@@ -203,9 +208,10 @@
                 if (!firebase.apps.length) firebase.initializeApp(config);
                 
                 db = firebase.firestore();
+                auth = firebase.auth();
                 
                 // Anonymous Auth MUST be enabled in Firebase Console (Authentication > Sign-in method)
-                await firebase.auth().signInAnonymously();
+                await auth.signInAnonymously();
                 
                 setStatus('success', 'Live Feed');
                 
@@ -214,12 +220,15 @@
                     .onSnapshot(snap => { 
                         document.getElementById('global-count').innerText = snap.size; 
                     }, err => {
-                        console.error("AlgoPulse: Snapshot error (check rules):", err);
+                        console.error("AlgoPulse: Snapshot error:", err);
+                        if (err.code === 'permission-denied') {
+                            setStatus('error', 'Database Denied');
+                        }
                     });
 
             } catch(e) {
                 console.error("AlgoPulse: Connection Error:", e);
-                setStatus('error', e.code || 'Connection Failed');
+                setStatus('error', e.code || 'Auth Error');
             }
         }
 
@@ -256,11 +265,12 @@
             }
             document.getElementById('nav-enroll').className = `px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${tab === 'enroll' ? 'active-tab' : 'text-slate-500'}`;
             document.getElementById('nav-manage').className = `px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${tab === 'manage' ? 'active-tab' : 'text-slate-500'}`;
+            if (window.lucide) lucide.createIcons();
         }
 
         document.getElementById('enroll-form').onsubmit = async (e) => {
             e.preventDefault();
-            if (!db) { alert("AlgoPulse: Database not connected. Check your configuration."); return; }
+            if (!db) { alert("AlgoPulse: Database not connected."); return; }
             
             const btn = document.getElementById('btn-enroll');
             const email = document.getElementById('email').value.toLowerCase().trim();
@@ -277,12 +287,12 @@
                 });
                 msg.classList.remove('hidden');
                 msg.className = "mt-6 p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/50 text-emerald-400 text-sm font-bold flex items-center gap-3";
-                msg.innerHTML = `<i data-lucide="check-circle" class="w-5 h-5"></i> Success! Pulse initialized. Check your inbox tomorrow at 7 AM IST.`;
+                msg.innerHTML = `<i data-lucide="check-circle" class="w-5 h-5"></i> Success! Pulse initialized. Check your inbox at 7 AM IST.`;
                 document.getElementById('email').value = '';
                 if (window.lucide) lucide.createIcons();
             } catch (err) { 
                 console.error("AlgoPulse: Enrollment error:", err);
-                alert("Subscription failed. Check your Firebase rules and ensure Anonymous Auth is enabled."); 
+                alert("Subscription failed. Check console for details."); 
             }
             finally { btn.disabled = false; btn.innerText = 'Start Pulse'; }
         };
