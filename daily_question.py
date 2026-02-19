@@ -21,11 +21,13 @@ SENDER_PASSWORD = os.getenv("EMAIL_PASSWORD")
 service_account_json = os.getenv("FIREBASE_SERVICE_ACCOUNT")
 if not firebase_admin._apps:
     try:
+        if not service_account_json:
+            raise ValueError("FIREBASE_SERVICE_ACCOUNT secret is missing!")
         cred = credentials.Certificate(json.loads(service_account_json))
         firebase_admin.initialize_app(cred)
-        print("✅ AlgoPulse Engine: Firebase initialized.")
+        print("✅ AlgoPulse Engine: Firebase initialized successfully.")
     except Exception as e:
-        print(f"❌ Failed to initialize Firebase: {e}")
+        print(f"❌ CRITICAL: Failed to initialize Firebase: {e}")
         exit(1)
 
 db = firestore.client()
@@ -46,8 +48,9 @@ def clean_ai_response(text):
 
 def call_ai(prompt, is_json=True):
     """Reliable AI call using Gemini 2.0 Flash."""
-    # FIXED: Removed markdown formatting from the URL string
+    # FIXED: Cleaned raw URL (removed corrupted markdown formatting)
     url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=){GEMINI_API_KEY}"
+    
     payload = {
         "contents": [{"parts": [{"text": prompt}]}], 
         "generationConfig": {"temperature": 0.2}
@@ -61,7 +64,7 @@ def call_ai(prompt, is_json=True):
             raw_text = res.json()['candidates'][0]['content']['parts'][0]['text']
             return clean_ai_response(raw_text)
         else:
-            print(f"❌ AI API Error: {res.status_code} - {res.text}")
+            print(f"❌ AI API Error ({res.status_code}): {res.text}")
     except Exception as e:
         print(f"❌ AI Exception: {e}")
     return None
@@ -106,6 +109,7 @@ def get_problem(topic, difficulty):
     return None
 
 def dispatch_email(to, subject, body):
+    print(f"📨 Attempting to dispatch email to: {to}...")
     if not SENDER_EMAIL or not SENDER_PASSWORD:
         print(f"❌ SMTP Error: Credentials missing (SENDER_EMAIL/SENDER_PASSWORD)")
         return False
@@ -119,9 +123,10 @@ def dispatch_email(to, subject, body):
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as s:
             s.login(SENDER_EMAIL, SENDER_PASSWORD)
             s.sendmail(SENDER_EMAIL, to, msg.as_string())
+        print(f"✅ SMTP Success: Email delivered to {to}")
         return True
     except Exception as e:
-        print(f"❌ SMTP Error for {to}: {e}")
+        print(f"❌ SMTP Failure for {to}: {e}")
         return False
 
 if __name__ == "__main__":
@@ -139,7 +144,7 @@ if __name__ == "__main__":
     subs = sub_ref.where(filter=FieldFilter('status', '==', 'active')).stream()
     sub_list = [ {**doc.to_dict(), 'id': doc.id} for doc in subs ]
     
-    print(f"👥 Found {len(sub_list)} active subscribers.")
+    print(f"👥 Database Query: Found {len(sub_list)} active subscribers.")
 
     if mode == "morning":
         configs = set((u.get('topic', 'LogicBuilding'), u.get('difficulty', 'Medium')) for u in sub_list)
@@ -151,10 +156,11 @@ if __name__ == "__main__":
             if problem_data:
                 p = json.loads(problem_data)
                 streak = u.get('streak', 0) + 1
-                # FIXED: Removed markdown formatting from the href link
+                
+                # FIXED: Cleaned raw URL for the button link
                 body = f"""
                 <html>
-                <body style="margin: 0; padding: 0; background-color: #020617; font-family: 'Inter', Helvetica, Arial, sans-serif; color: #f8fafc;">
+                <body style="margin: 0; padding: 0; background-color: #020617; font-family: sans-serif; color: #f8fafc;">
                     <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #020617; padding: 40px 20px;">
                         <tr>
                             <td align="center">
@@ -174,7 +180,7 @@ if __name__ == "__main__":
                                             </div>
                                             <div style="background-color: #1e293b; border-radius: 16px; padding: 20px; margin-bottom: 40px;">
                                                 <h4 style="margin: 0 0 12px 0; font-size: 11px; font-weight: 900; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Input Example</h4>
-                                                <code style="font-family: 'JetBrains Mono', monospace; color: #38bdf8; font-size: 14px; line-height: 1.5;">{p.get('example', 'Check LeetCode for details')}</code>
+                                                <code style="font-family: monospace; color: #38bdf8; font-size: 14px; line-height: 1.5;">{p.get('example', 'Check LeetCode for details')}</code>
                                             </div>
                                             <div style="text-align: center;">
                                                 <a href="[https://leetcode.com/problems/](https://leetcode.com/problems/){p['slug']}/" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 18px 48px; border-radius: 16px; text-decoration: none; font-weight: 800; font-size: 16px; box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.4);">Solve Problem</a>
@@ -199,20 +205,21 @@ if __name__ == "__main__":
                         'lastProblemData': problem_data,
                         'lastSentAt': datetime.now(timezone.utc)
                     })
-                    print(f"✅ Morning mail sent to {u['email']}")
+                else:
+                    print(f"❌ Execution Failure: Morning mail was NOT sent to {u['email']}")
             else:
-                print(f"⚠️ No problem found for {key}")
+                print(f"⚠️ Warning: No problem found for config '{key}'")
 
     elif mode == "solution":
         for u in sub_list:
             problem_data = u.get('lastProblemData')
             if not problem_data:
-                print(f"⚠️ Skipping {u['email']}: No problem record found in database.")
+                print(f"⚠️ Skipping {u['email']}: No 'lastProblemData' found in user record. Did the morning run fail?")
                 continue
 
             p = json.loads(problem_data)
             lang = u.get('language', 'Python')
-            print(f"🛠️ Solving '{p['title']}' in {lang} for {u['email']}...")
+            print(f"🛠️ Solution Logic: Solving '{p['title']}' in {lang} for {u['email']}...")
             
             prompt = f"Provide a clean, efficient {lang} code solution for the LeetCode problem: '{p['title']}'. Output ONLY the raw code without any explanations or markdown backticks."
             solution = call_ai(prompt, is_json=False)
@@ -220,7 +227,7 @@ if __name__ == "__main__":
             if solution:
                 body = f"""
                 <html>
-                <body style="margin: 0; padding: 0; background-color: #020617; font-family: 'Inter', Helvetica, Arial, sans-serif; color: #f8fafc;">
+                <body style="margin: 0; padding: 0; background-color: #020617; font-family: sans-serif; color: #f8fafc;">
                     <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #020617; padding: 40px 20px;">
                         <tr>
                             <td align="center">
@@ -235,7 +242,7 @@ if __name__ == "__main__":
                                     <tr>
                                         <td style="padding: 20px 40px 40px 40px;">
                                             <div style="background-color: #020617; border-radius: 16px; border: 1px solid #334155; padding: 24px; overflow-x: auto;">
-                                                <pre style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.6; color: #34d399;">{solution}</pre>
+                                                <pre style="margin: 0; font-family: monospace; font-size: 13px; line-height: 1.6; color: #34d399;">{solution}</pre>
                                             </div>
                                             <div style="margin-top: 24px; text-align: center;">
                                                 <p style="font-size: 14px; color: #94a3b8; line-height: 1.5;">Compare this with your implementation. Consistency is what separates great engineers from good ones.</p>
@@ -254,11 +261,9 @@ if __name__ == "__main__":
                 </body>
                 </html>
                 """
-                if dispatch_email(u['email'], f"✅ Solution: {p['title']}", body):
-                    print(f"✅ Evening solution sent to {u['email']}")
-                else:
-                    print(f"❌ Failed to send email to {u['email']}")
+                if not dispatch_email(u['email'], f"✅ Solution Recap: {p['title']}", body):
+                    print(f"❌ Execution Failure: Evening solution was NOT sent to {u['email']}")
             else:
-                print(f"❌ AI failed to generate solution for {u['email']}")
+                print(f"❌ AI Error: Failed to generate solution content for {u['email']}.")
 
-    print(f"🏁 ENGINE FINISHED.")
+    print(f"🏁 ENGINE FINISHED. Check logs above for specific delivery statuses.")
