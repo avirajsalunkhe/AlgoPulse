@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlgoPulse | Consistency Wins</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .active-tab { border-bottom: 2px solid #3b82f6; color: #3b82f6; }
+        .hidden-tab { display: none !important; }
+        .card-selected { border-color: #3b82f6 !important; background: #1e293b !important; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
+        .status-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+    <div class="max-w-5xl mx-auto p-6 md:p-12">
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-16 gap-6">
+            <div class="flex items-center gap-4">
+                <div class="bg-blue-600 p-2.5 rounded-xl shadow-lg shadow-blue-600/20">
+                    <i data-lucide="activity" class="text-white w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-black tracking-tighter uppercase italic">Algo<span class="text-blue-500 not-italic">Pulse</span></h1>
+                    <div class="flex items-center gap-2 mt-1">
+                        <div id="status-dot" class="w-1.5 h-1.5 rounded-full bg-slate-700"></div>
+                        <p id="status-text" class="text-[10px] text-slate-500 font-black uppercase tracking-widest">Connecting...</p>
+                    </div>
+                </div>
+            </div>
+            <nav class="flex bg-slate-900/50 p-1 rounded-xl border border-slate-800 backdrop-blur-md">
+                <button onclick="switchTab('enroll')" id="nav-enroll" class="px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all active-tab">Enroll</button>
+                <button onclick="switchTab('manage')" id="nav-manage" class="px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all text-slate-500">Manage</button>
+            </nav>
+        </header>
+
+        <main id="tab-enroll" class="animate-in fade-in duration-500">
+            <section class="mb-12 text-center md:text-left">
+                <h2 class="text-4xl md:text-5xl font-black mb-4 tracking-tight">Consistency <span class="text-slate-600 text-3xl">is the</span> <br class="hidden md:block">New Intensity.</h2>
+                <p class="text-slate-400 max-w-2xl text-lg leading-relaxed">Master logic and DSA with a curated problem at 7 AM and an optimized solution at 8 PM daily.</p>
+            </section>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-12">
+                <div class="lg:col-span-8 space-y-10">
+                    <div>
+                        <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">1. Choose Your Pulse</h3>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3" id="topic-grid"></div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                            <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">2. Difficulty</h3>
+                            <div class="flex p-1 bg-slate-900 border border-slate-800 rounded-xl" id="difficulty-picker">
+                                <button onclick="setDifficulty('Easy')" id="diff-Easy" class="flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest">Easy</button>
+                                <button onclick="setDifficulty('Medium')" id="diff-Medium" class="flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest card-selected">Medium</button>
+                                <button onclick="setDifficulty('Hard')" id="diff-Hard" class="flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest">Hard</button>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">3. Language</h3>
+                            <select id="language-picker" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm font-bold outline-none cursor-pointer">
+                                <option value="Python">Python</option>
+                                <option value="Java">Java</option>
+                                <option value="C++">C++</option>
+                                <option value="JavaScript">JavaScript</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <form id="enroll-form" class="bg-blue-600 p-8 md:p-10 rounded-3xl shadow-2xl relative overflow-hidden group">
+                        <div class="relative z-10">
+                            <h3 class="text-2xl font-black text-white mb-6 italic">Ready to start the grind?</h3>
+                            <div class="flex flex-col md:flex-row gap-4">
+                                <input type="email" id="email" required placeholder="dev@example.com" class="flex-1 bg-white/10 border border-white/20 rounded-2xl px-6 py-4 text-white placeholder:text-blue-200 outline-none font-medium">
+                                <button type="submit" id="btn-enroll" class="bg-white text-blue-600 px-10 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl active:scale-95 transition-all">Start Pulse</button>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="status-msg" class="hidden"></div>
+                </div>
+
+                <div class="lg:col-span-4 space-y-6">
+                    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-8">
+                        <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Network Size</p>
+                        <div class="flex items-baseline gap-2">
+                            <span id="global-count" class="text-5xl font-black text-white">0</span>
+                            <span class="text-xs font-bold text-emerald-500 uppercase tracking-widest">Users</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <main id="tab-manage" class="hidden-tab max-w-2xl mx-auto">
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl p-8 md:p-12 space-y-10">
+                <div class="text-center">
+                    <h3 class="text-2xl font-black mb-2 italic">Pulse Manager</h3>
+                    <p class="text-sm text-slate-500 font-medium">Lookup your subscription or check your streak.</p>
+                </div>
+                <div class="flex flex-col md:flex-row gap-4">
+                    <input type="email" id="lookup-email" placeholder="Email address..." class="flex-1 bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 outline-none">
+                    <button onclick="lookupUser()" class="bg-slate-800 hover:bg-slate-700 px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all">Search</button>
+                </div>
+                <div id="results" class="space-y-4 pt-10 border-t border-slate-800/50"></div>
+            </div>
+        </main>
+
+        <footer class="mt-32 pt-10 border-t border-slate-900 text-center">
+            <p class="text-slate-600 text-[10px] font-black uppercase tracking-widest italic">AlgoPulse Engine • Built by Aviraj Salunkhe</p>
+        </footer>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+
+    <script>
+        const APP_ID = 'algopulse-v1';
+        const TOPICS = [
+            { id: 'LogicBuilding', name: 'Logic Building', icon: 'brain', color: 'text-amber-400' },
+            { id: 'Arrays', name: 'Arrays & Hashing', icon: 'layout-grid', color: 'text-emerald-400' },
+            { id: 'TwoPointers', name: 'Two Pointers', icon: 'arrow-left-right', color: 'text-blue-400' },
+            { id: 'SlidingWindow', name: 'Sliding Window', icon: 'square', color: 'text-purple-400' },
+            { id: 'StacksQueues', name: 'Stacks & Queues', icon: 'database', color: 'text-red-400' },
+            { id: 'Trees', name: 'Trees & Graphs', icon: 'git-branch', color: 'text-orange-400' },
+            { id: 'BinarySearch', name: 'Binary Search', icon: 'search', color: 'text-cyan-400' },
+            { id: 'DP', name: 'Dynamic Programming', icon: 'layers', color: 'text-pink-400' },
+            { id: 'MathBitwise', name: 'Math & Bitwise', icon: 'binary', color: 'text-lime-400' }
+        ];
+
+        let selectedTopic = 'LogicBuilding';
+        let selectedDifficulty = 'Medium';
+        let db;
+
+        const configStr = `GITHUB_FIREBASE_CONFIG_PLACEHOLDER`;
+        let config = null;
+        try {
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) config = JSON.parse(__firebase_config);
+            else if (configStr.startsWith('{')) config = JSON.parse(configStr);
+        } catch(e) {}
+
+        function setStatus(type, text) {
+            const dot = document.getElementById('status-dot');
+            const statusText = document.getElementById('status-text');
+            statusText.innerText = text;
+            if (type === 'success') {
+                dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]";
+                statusText.className = "text-[10px] text-emerald-500 font-black uppercase tracking-widest";
+            } else {
+                dot.className = "w-1.5 h-1.5 rounded-full bg-slate-700 status-pulse";
+            }
+        }
+
+        async function init() {
+            renderTopics();
+            if (window.lucide) lucide.createIcons();
+            if (!config) { setStatus('pending', 'Connecting...'); return; }
+            try {
+                if (!firebase.apps.length) firebase.initializeApp(config);
+                db = firebase.firestore();
+                await firebase.auth().signInAnonymously();
+                setStatus('success', 'Live Feed');
+                db.collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('subscribers')
+                    .onSnapshot(snap => { document.getElementById('global-count').innerText = snap.size; });
+            } catch(e) { setStatus('error', 'Auth Error'); }
+        }
+
+        function renderTopics() {
+            const grid = document.getElementById('topic-grid');
+            grid.innerHTML = TOPICS.map(t => `
+                <div onclick="selectTopic('${t.id}')" class="cursor-pointer p-4 rounded-xl border transition-all ${selectedTopic === t.id ? 'card-selected border-blue-500' : 'bg-slate-900/30 border-slate-800 hover:border-slate-700'}">
+                    <i data-lucide="${t.icon}" class="mb-2 w-5 h-5 ${t.color}"></i>
+                    <div class="text-[10px] font-black uppercase tracking-tighter ${selectedTopic === t.id ? 'text-white' : 'text-slate-500'}">${t.name}</div>
+                </div>
+            `).join('');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function selectTopic(id) { selectedTopic = id; renderTopics(); }
+        function setDifficulty(lvl) {
+            selectedDifficulty = lvl;
+            ['Easy', 'Medium', 'Hard'].forEach(d => {
+                document.getElementById(`diff-${d}`).classList.remove('card-selected', 'text-white');
+            });
+            document.getElementById(`diff-${lvl}`).classList.add('card-selected', 'text-white');
+        }
+
+        function switchTab(tab) {
+            document.getElementById('tab-enroll').className = tab === 'enroll' ? '' : 'hidden-tab';
+            document.getElementById('tab-manage').className = tab === 'manage' ? 'max-w-2xl mx-auto' : 'hidden-tab';
+            document.getElementById('nav-enroll').className = `px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${tab === 'enroll' ? 'active-tab' : 'text-slate-500'}`;
+            document.getElementById('nav-manage').className = `px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${tab === 'manage' ? 'active-tab' : 'text-slate-500'}`;
+        }
+
+        document.getElementById('enroll-form').onsubmit = async (e) => {
+            e.preventDefault();
+            if (!db) return;
+            const btn = document.getElementById('btn-enroll');
+            const email = document.getElementById('email').value.toLowerCase().trim();
+            const language = document.getElementById('language-picker').value;
+            const msg = document.getElementById('status-msg');
+
+            btn.disabled = true;
+            btn.innerText = 'Syncing...';
+
+            try {
+                await db.collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('subscribers').add({
+                    email, topic: selectedTopic, difficulty: selectedDifficulty, language, 
+                    streak: 0, status: 'active', createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                msg.classList.remove('hidden');
+                msg.className = "mt-6 p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/50 text-emerald-400 text-sm font-bold flex items-center gap-3";
+                msg.innerHTML = `<i data-lucide="check-circle" class="w-5 h-5"></i> Success! Pulse initialized.`;
+                document.getElementById('email').value = '';
+            } catch (err) { alert("Error connecting to database."); }
+            finally { btn.disabled = false; btn.innerText = 'Start Pulse'; }
+        };
+
+        async function lookupUser() {
+            if (!db) return;
+            const email = document.getElementById('lookup-email').value.toLowerCase().trim();
+            const res = document.getElementById('results');
+            res.innerHTML = '<div class="text-center py-10 text-slate-500 animate-pulse font-black uppercase text-[10px] tracking-widest">Searching...</div>';
+            try {
+                const snap = await db.collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('subscribers').where('email', '==', email).get();
+                if (snap.empty) { res.innerHTML = '<div class="text-slate-500 text-center py-10 font-bold">No active pulse found.</div>'; return; }
+                res.innerHTML = snap.docs.map(doc => {
+                    const d = doc.data();
+                    return `<div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex justify-between items-center group">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-orange-500"><i data-lucide="flame" class="w-5 h-5 ${d.streak > 0 ? 'fill-current' : ''}"></i></div>
+                            <div>
+                                <div class="text-[10px] font-black text-blue-500 uppercase">${d.difficulty} ${d.topic}</div>
+                                <div class="text-xl font-black">${d.streak || 0} Day Streak</div>
+                            </div>
+                        </div>
+                        <button onclick="deleteSub('${doc.id}')" class="text-slate-600 hover:text-red-500 font-black uppercase text-[10px] p-2">Cancel</button>
+                    </div>`;
+                }).join('');
+                if (window.lucide) lucide.createIcons();
+            } catch (err) { res.innerHTML = '<div class="text-red-500 text-center py-6 text-xs font-black uppercase">Search Error.</div>'; }
+        }
+
+        async function deleteSub(id) {
+            if (confirm("Cancel this pulse?")) {
+                await db.collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('subscribers').doc(id).delete();
+                lookupUser();
+            }
+        }
+        init();
+    </script>
+</body>
+</html>
