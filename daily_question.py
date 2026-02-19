@@ -12,6 +12,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 # --- Configuration ---
+# CRITICAL: This must match the APP_ID used in your Dashboard (index.html)
 APP_ID = "algopulse-v1" 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 SENDER_EMAIL = os.getenv("EMAIL_SENDER")
@@ -140,11 +141,27 @@ if __name__ == "__main__":
         
     print(f"🚀 ENGINE START: Running in {mode.upper()} mode...")
 
+    # Path Debugging
     sub_ref = db.collection('artifacts').document(APP_ID).collection('public').document('data').collection('subscribers')
-    subs = sub_ref.where(filter=FieldFilter('status', '==', 'active')).stream()
-    sub_list = [ {**doc.to_dict(), 'id': doc.id} for doc in subs ]
     
-    print(f"👥 Database Query: Found {len(sub_list)} active subscribers.")
+    # Let's check all documents first to see if APP_ID is correct
+    all_docs = sub_ref.limit(5).stream()
+    all_subs = []
+    found_any = False
+    for doc in all_docs:
+        found_any = True
+        all_subs.append({**doc.to_dict(), 'id': doc.id})
+    
+    if not found_any:
+        print(f"❌ CRITICAL: No documents found at path: artifacts/{APP_ID}/public/data/subscribers")
+        print("Check if your index.html is using 'algopulse-v1' or 'leetcode-dsa-bot' as the APP_ID.")
+    else:
+        print(f"🔍 Diagnostic: Found {len(all_subs)} total docs. Filtering for 'active' status...")
+
+    # Filter for active subscribers
+    sub_list = [s for s in all_subs if s.get('status') == 'active']
+    
+    print(f"👥 Final Target: Found {len(sub_list)} active subscribers.")
 
     if mode == "morning":
         configs = set((u.get('topic', 'LogicBuilding'), u.get('difficulty', 'Medium')) for u in sub_list)
