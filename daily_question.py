@@ -49,7 +49,7 @@ def clean_ai_response(text):
 
 def call_ai(prompt, is_json=True):
     """Reliable AI call using Gemini 2.0 Flash."""
-    # FIXED: URL is now a clean raw string without any markdown formatting
+    # FIXED: Clean raw URL string - No markdown brackets or parenthesis
     url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=){GEMINI_API_KEY}"
     
     payload = {
@@ -138,7 +138,7 @@ EMAIL_BASE_CSS = """
 
 def get_formal_morning_html(p, streak, difficulty, language):
     diff_color = {"Easy": "#10b981", "Medium": "#3b82f6", "Hard": "#ef4444"}.get(difficulty, "#3b82f6")
-    # FIXED: LeetCode href is now a clean raw string
+    # FIXED: Clean raw URL for href
     return f"""
     <html>
     <body style="{EMAIL_BASE_CSS}">
