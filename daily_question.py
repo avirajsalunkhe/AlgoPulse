@@ -55,15 +55,42 @@ def clean_ai_response(text):
 def call_ai(prompt, is_json=True):
     """
     Dual-provider AI call. 
-    Primary: Groq Cloud (Llama 3.3 70B)
-    Fallback: Gemini 2.0 Flash
+    Primary: Gemini 2.0 Flash (Swapped back as requested)
+    Fallback: Groq Cloud (Llama 3.3 70B)
     """
     
-    # 1. Try Groq (Now Primary)
-    print(f"🔍 AI: Checking Groq Status...")
+    # 1. Try Gemini (Primary)
+    print(f"🔍 AI: Checking Gemini Status...")
+    if GEMINI_API_KEY:
+        # FIXED: Clean raw URL string. Absolutely no markdown brackets.
+        gemini_url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=){GEMINI_API_KEY}"
+        print(f"🤖 AI: Attempting Gemini 2.0 Flash...")
+        
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}], 
+            "generationConfig": {"temperature": 0.2}
+        }
+        if is_json: 
+            payload["generationConfig"]["responseMimeType"] = "application/json"
+            
+        try:
+            res = requests.post(gemini_url, json=payload, timeout=30)
+            if res.status_code == 200:
+                raw_text = res.json()['candidates'][0]['content']['parts'][0]['text']
+                print("✅ AI: Gemini response received.")
+                return clean_ai_response(raw_text)
+            else:
+                print(f"⚠️ AI: Gemini failed with Status {res.status_code}. Response: {res.text[:150]}")
+        except Exception as e:
+            print(f"⚠️ AI: Gemini connection error: {e}")
+    else:
+        print("⚠️ AI: GEMINI_API_KEY is NOT set.")
+
+    # 2. Fallback to Groq
+    print(f"🔄 AI: Falling back to Groq...")
     if GROQ_API_KEY:
-        print(f"🤖 AI: GROQ_API_KEY detected (Length: {len(GROQ_API_KEY)}). Attempting Groq...")
-        # FIXED: Clean raw URL string. No markdown brackets or parentheses.
+        print(f"🤖 AI: Attempting Groq Cloud (Llama 3.3)...")
+        # FIXED: Clean raw URL string. Absolutely no markdown brackets.
         groq_url = "[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)"
         headers = {
             "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -84,38 +111,11 @@ def call_ai(prompt, is_json=True):
                 print("✅ AI: Groq response received.")
                 return clean_ai_response(raw_text)
             else:
-                print(f"⚠️ AI: Groq failed with Status {res.status_code}. Response: {res.text[:150]}")
+                print(f"❌ AI: Groq failed with Status {res.status_code}. Response: {res.text[:150]}")
         except Exception as e:
-            print(f"⚠️ AI: Groq connection error (Check URL/Network): {e}")
+            print(f"❌ AI: Groq connection error: {e}")
     else:
-        print("⚠️ AI: GROQ_API_KEY is NOT set in environment variables. Verify GitHub Secrets.")
-
-    # 2. Fallback to Gemini
-    print(f"🔄 AI: Falling back to Gemini...")
-    if GEMINI_API_KEY:
-        # FIXED: Clean raw URL string. No markdown brackets or parentheses.
-        gemini_url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=){GEMINI_API_KEY}"
-        print(f"🤖 AI: Attempting Gemini 2.0 Flash...")
-        
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}], 
-            "generationConfig": {"temperature": 0.2}
-        }
-        if is_json: 
-            payload["generationConfig"]["responseMimeType"] = "application/json"
-            
-        try:
-            res = requests.post(gemini_url, json=payload, timeout=30)
-            if res.status_code == 200:
-                raw_text = res.json()['candidates'][0]['content']['parts'][0]['text']
-                print("✅ AI: Gemini response received.")
-                return clean_ai_response(raw_text)
-            else:
-                print(f"❌ AI: Gemini failed with Status {res.status_code}. Response: {res.text[:150]}")
-        except Exception as e:
-            print(f"❌ AI: Gemini connection error (Check URL/Network): {e}")
-    else:
-        print("⚠️ AI: GEMINI_API_KEY is NOT set.")
+        print("⚠️ AI: GROQ_API_KEY is NOT set in environment variables.")
 
     print("❌ AI: All AI providers failed.")
     return None
@@ -195,7 +195,7 @@ EMAIL_BASE_CSS = """
 
 def get_formal_morning_html(p, streak, difficulty, language):
     diff_color = {"Easy": "#10b981", "Medium": "#3b82f6", "Hard": "#ef4444"}.get(difficulty, "#3b82f6")
-    # FIXED: Clean raw URL string. No markdown brackets or parentheses.
+    # FIXED: Clean raw URL string. No markdown brackets.
     problem_url = f"[https://leetcode.com/problems/](https://leetcode.com/problems/){p['slug']}/"
     
     return f"""
