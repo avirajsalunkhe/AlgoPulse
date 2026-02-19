@@ -12,7 +12,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 # --- Configuration ---
-# ALIGNED: This matches the APP_ID in your index.html
+# Ensure this matches the APP_ID in your index.html
 APP_ID = "leetcode-dsa-bot" 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 SENDER_EMAIL = os.getenv("EMAIL_SENDER")
@@ -49,7 +49,7 @@ def clean_ai_response(text):
 
 def call_ai(prompt, is_json=True):
     """Reliable AI call using Gemini 2.0 Flash."""
-    # FIXED: Cleaned raw URL (removed corrupted markdown formatting)
+    # FIXED: Clean URL (removed markdown artifacts)
     url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=){GEMINI_API_KEY}"
     
     payload = {
@@ -117,7 +117,7 @@ def dispatch_email(to, subject, body):
     
     msg = MIMEMultipart()
     msg['Subject'] = subject
-    msg['From'] = f"AlgoPulse Engine <{SENDER_EMAIL}>"
+    msg['From'] = f"AlgoPulse <{SENDER_EMAIL}>"
     msg['To'] = to
     msg.attach(MIMEText(body, 'html'))
     try:
@@ -130,6 +130,97 @@ def dispatch_email(to, subject, body):
         print(f"❌ SMTP Failure for {to}: {e}")
         return False
 
+# --- Email Styling Helpers ---
+EMAIL_BASE_CSS = """
+    margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: #f4f7fa; color: #1a202c; line-height: 1.6;
+"""
+
+def get_formal_morning_html(p, streak, difficulty, language):
+    diff_color = {"Easy": "#10b981", "Medium": "#3b82f6", "Hard": "#ef4444"}.get(difficulty, "#3b82f6")
+    return f"""
+    <html>
+    <body style="{EMAIL_BASE_CSS}">
+        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="padding: 40px 20px;">
+            <tr>
+                <td align="center">
+                    <table width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                        <tr>
+                            <td style="padding: 40px; border-bottom: 1px solid #edf2f7;">
+                                <div style="color: #718096; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;">AlgoPulse Daily Dispatch</div>
+                                <h1 style="margin: 0; font-size: 24px; color: #2d3748; font-weight: 800;">{p['title']}</h1>
+                                <div style="margin-top: 16px;">
+                                    <span style="background-color: {diff_color}; color: white; padding: 4px 12px; border-radius: 4px; font-size: 11px; font-weight: 700; margin-right: 8px;">{difficulty.upper()}</span>
+                                    <span style="color: #4a5568; font-size: 13px; font-weight: 600;">Day {streak} • {language}</span>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 40px;">
+                                <h3 style="margin: 0 0 16px 0; font-size: 16px; color: #2d3748;">The Challenge</h3>
+                                <p style="margin: 0; color: #4a5568; font-size: 15px;">{p['description']}</p>
+                                
+                                <div style="margin: 32px 0; padding: 20px; background-color: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                    <h4 style="margin: 0 0 8px 0; font-size: 11px; color: #a0aec0; text-transform: uppercase;">Example Input/Output</h4>
+                                    <code style="font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; color: #2d3748; font-size: 13px;">{p.get('example', 'Refer to LeetCode for detailed constraints.')}</code>
+                                </div>
+
+                                <div style="text-align: center;">
+                                    <a href="[https://leetcode.com/problems/](https://leetcode.com/problems/){p['slug']}/" style="display: inline-block; background-color: #2d3748; color: #ffffff; padding: 14px 32px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 14px;">Open Problem on LeetCode</a>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 20px 40px; background-color: #f8fafc; border-top: 1px solid #edf2f7; text-align: center;">
+                                <p style="margin: 0; font-size: 12px; color: #718096;">Stay consistent. One problem a day builds a career.</p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+
+def get_formal_solution_html(p, solution, language):
+    return f"""
+    <html>
+    <body style="{EMAIL_BASE_CSS}">
+        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="padding: 40px 20px;">
+            <tr>
+                <td align="center">
+                    <table width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                        <tr>
+                            <td style="padding: 40px; border-bottom: 1px solid #edf2f7;">
+                                <div style="color: #48bb78; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;">AlgoPulse Recap</div>
+                                <h1 style="margin: 0; font-size: 24px; color: #2d3748; font-weight: 800;">Solution: {p['title']}</h1>
+                                <p style="margin: 8px 0 0 0; color: #718096; font-size: 14px;">Optimal implementation in <strong>{language}</strong></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 40px;">
+                                <div style="background-color: #1a202c; border-radius: 8px; padding: 24px; overflow-x: auto;">
+                                    <pre style="margin: 0; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 13px; line-height: 1.5; color: #e2e8f0;">{solution}</pre>
+                                </div>
+                                <p style="margin-top: 24px; color: #4a5568; font-size: 14px; text-align: center;">
+                                    Compare this with your logic. Reviewing different approaches is key to mastering algorithms.
+                                </p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 20px 40px; background-color: #f8fafc; border-top: 1px solid #edf2f7; text-align: center;">
+                                <p style="margin: 0; font-size: 11px; color: #a0aec0; text-transform: uppercase; font-weight: 700;">AlgoPulse • See you tomorrow at 07:00 AM IST</p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+
 if __name__ == "__main__":
     mode = "morning"
     if "--mode" in sys.argv:
@@ -141,144 +232,52 @@ if __name__ == "__main__":
         
     print(f"🚀 ENGINE START: Running in {mode.upper()} mode...")
 
-    # Subscriber path
+    # Subscriber Logic
     sub_ref = db.collection('artifacts').document(APP_ID).collection('public').document('data').collection('subscribers')
+    subs = sub_ref.where(filter=FieldFilter('status', '==', 'active')).stream()
+    sub_list = [ {**doc.to_dict(), 'id': doc.id} for doc in subs ]
     
-    # Check all documents for diagnostic purposes
-    all_docs = sub_ref.stream()
-    sub_list = []
-    found_any = False
-    
-    for doc in all_docs:
-        found_any = True
-        data = doc.to_dict()
-        if data.get('status') == 'active':
-            sub_list.append({**data, 'id': doc.id})
-    
-    if not found_any:
-        print(f"❌ CRITICAL: No documents found at path: artifacts/{APP_ID}/public/data/subscribers")
-        print(f"Verify that your dashboard is saving users under the APP_ID: {APP_ID}")
-    
-    print(f"👥 Target: Found {len(sub_list)} active subscribers.")
+    print(f"👥 Database: Found {len(sub_list)} active subscribers.")
 
     if mode == "morning":
-        configs = set((u.get('topic', 'LogicBuilding'), u.get('difficulty', 'Medium')) for u in sub_list)
+        # Cache unique problem requests
+        configs = set((u.get('topic', 'Arrays'), u.get('difficulty', 'Medium')) for u in sub_list)
         packs = {f"{t}_{d}": get_problem(t, d) for t, d in configs}
 
         for u in sub_list:
-            key = f"{u.get('topic', 'LogicBuilding')}_{u.get('difficulty', 'Medium')}"
+            key = f"{u.get('topic', 'Arrays')}_{u.get('difficulty', 'Medium')}"
             problem_data = packs.get(key)
             if problem_data:
                 p = json.loads(problem_data)
                 streak = u.get('streak', 0) + 1
+                body = get_formal_morning_html(p, streak, u['difficulty'], u['language'])
                 
-                # FIXED: Cleaned raw URL for the button link
-                body = f"""
-                <html>
-                <body style="margin: 0; padding: 0; background-color: #020617; font-family: sans-serif; color: #f8fafc;">
-                    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #020617; padding: 40px 20px;">
-                        <tr>
-                            <td align="center">
-                                <table width="100%" max-width="600" style="max-width: 600px; background-color: #0f172a; border: 1px solid #1e293b; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
-                                    <tr>
-                                        <td style="padding: 40px 40px 20px 40px; text-align: center;">
-                                            <div style="display: inline-block; background-color: #1d4ed8; color: #ffffff; padding: 8px 16px; border-radius: 100px; font-weight: 800; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 24px;">
-                                                Day {streak} Pulse
-                                            </div>
-                                            <h1 style="margin: 0; font-size: 32px; font-weight: 900; letter-spacing: -1px; color: #ffffff; line-height: 1.2;">{p['title']}</h1>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style="padding: 20px 40px 40px 40px;">
-                                            <div style="background-color: #020617; border-radius: 16px; border-left: 4px solid #3b82f6; padding: 24px; margin-bottom: 32px;">
-                                                <p style="margin: 0; font-size: 16px; line-height: 1.7; color: #94a3b8;">{p['description']}</p>
-                                            </div>
-                                            <div style="background-color: #1e293b; border-radius: 16px; padding: 20px; margin-bottom: 40px;">
-                                                <h4 style="margin: 0 0 12px 0; font-size: 11px; font-weight: 900; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Input Example</h4>
-                                                <code style="font-family: monospace; color: #38bdf8; font-size: 14px; line-height: 1.5;">{p.get('example', 'Check LeetCode for details')}</code>
-                                            </div>
-                                            <div style="text-align: center;">
-                                                <a href="[https://leetcode.com/problems/](https://leetcode.com/problems/){p['slug']}/" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 18px 48px; border-radius: 16px; text-decoration: none; font-weight: 800; font-size: 16px; box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.4);">Solve Problem</a>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style="padding: 20px 40px 40px 40px; border-top: 1px solid #1e293b; text-align: center;">
-                                            <p style="margin: 0; font-size: 12px; color: #475569; letter-spacing: 1px; text-transform: uppercase; font-weight: 700;">AlgoPulse • Consistency is the new Intensity</p>
-                                        </td>
-                                    </tr>
-                                </table>
-                            </td>
-                        </tr>
-                    </table>
-                </body>
-                </html>
-                """
-                if dispatch_email(u['email'], f"🚀 Day {streak}: {p['title']}", body):
+                subject = f"Day {streak}: {p['title']} ({u['difficulty']})"
+                if dispatch_email(u['email'], subject, body):
                     sub_ref.document(u['id']).update({
                         'streak': streak,
                         'lastProblemData': problem_data,
                         'lastSentAt': datetime.now(timezone.utc)
                     })
-                else:
-                    print(f"❌ Execution Failure: Morning mail was NOT sent to {u['email']}")
             else:
-                print(f"⚠️ Warning: No problem found for config '{key}'")
+                print(f"⚠️ No problem found for config '{key}'")
 
     elif mode == "solution":
         for u in sub_list:
             problem_data = u.get('lastProblemData')
             if not problem_data:
-                print(f"⚠️ Skipping {u['email']}: No 'lastProblemData' found in user record. Did the morning run fail?")
+                print(f"⚠️ Skipping {u['email']}: No problem record found.")
                 continue
 
             p = json.loads(problem_data)
             lang = u.get('language', 'Python')
-            print(f"🛠️ Solution Logic: Solving '{p['title']}' in {lang} for {u['email']}...")
+            print(f"🛠️ Generating solution for '{p['title']}' for {u['email']}...")
             
-            prompt = f"Provide a clean, efficient {lang} code solution for the LeetCode problem: '{p['title']}'. Output ONLY the raw code without any explanations or markdown backticks."
-            solution = call_ai(prompt, is_json=False)
+            prompt = f"Provide a professional, clean, efficient {lang} code solution for the LeetCode problem: '{p['title']}'. Output ONLY raw code, no explanations."
+            solution_code = call_ai(prompt, is_json=False)
             
-            if solution:
-                body = f"""
-                <html>
-                <body style="margin: 0; padding: 0; background-color: #020617; font-family: sans-serif; color: #f8fafc;">
-                    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #020617; padding: 40px 20px;">
-                        <tr>
-                            <td align="center">
-                                <table width="100%" max-width="600" style="max-width: 600px; background-color: #0f172a; border: 1px solid #1e293b; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
-                                    <tr>
-                                        <td style="padding: 40px 40px 20px 40px;">
-                                            <div style="color: #10b981; font-weight: 800; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px;">Solution Recap</div>
-                                            <h1 style="margin: 0; font-size: 28px; font-weight: 900; color: #ffffff; line-height: 1.2;">{p['title']}</h1>
-                                            <div style="margin-top: 8px; font-size: 14px; color: #64748b;">Language: <span style="color: #f8fafc; font-weight: 700;">{lang}</span></div>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style="padding: 20px 40px 40px 40px;">
-                                            <div style="background-color: #020617; border-radius: 16px; border: 1px solid #334155; padding: 24px; overflow-x: auto;">
-                                                <pre style="margin: 0; font-family: monospace; font-size: 13px; line-height: 1.6; color: #34d399;">{solution}</pre>
-                                            </div>
-                                            <div style="margin-top: 24px; text-align: center;">
-                                                <p style="font-size: 14px; color: #94a3b8; line-height: 1.5;">Compare this with your implementation. Consistency is what separates great engineers from good ones.</p>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style="padding: 20px 40px 40px 40px; border-top: 1px solid #1e293b; text-align: center;">
-                                            <p style="margin: 0; font-size: 11px; color: #475569; letter-spacing: 1px; text-transform: uppercase; font-weight: 700;">AlgoPulse Recap • See you tomorrow at 07:00 AM</p>
-                                        </td>
-                                    </tr>
-                                </table>
-                            </td>
-                        </tr>
-                    </table>
-                </body>
-                </html>
-                """
-                if not dispatch_email(u['email'], f"✅ Solution Recap: {p['title']}", body):
-                    print(f"❌ Execution Failure: Evening solution was NOT sent to {u['email']}")
-            else:
-                print(f"❌ AI Error: Failed to generate solution content for {u['email']}.")
+            if solution_code:
+                body = get_formal_solution_html(p, solution_code, lang)
+                dispatch_email(u['email'], f"✅ Solution: {p['title']}", body)
 
-    print(f"🏁 ENGINE FINISHED. Check logs above for specific delivery statuses.")
+    print(f"🏁 ENGINE FINISHED.")
