@@ -46,15 +46,14 @@
                 <p class="text-slate-400 max-w-2xl text-lg leading-relaxed">Master logic and DSA with a curated problem at 7 AM and an optimized solution at 8 PM daily.</p>
             </section>
 
-            <!-- Configuration Alert (Hidden when connected) -->
             <div id="setup-warning" class="hidden mb-10 bg-amber-950/20 border border-amber-800/50 p-6 rounded-3xl flex gap-4 items-start">
                 <div class="bg-amber-500/10 p-2 rounded-lg text-amber-500">
                     <i data-lucide="alert-triangle" class="w-5 h-5"></i>
                 </div>
                 <div>
-                    <h4 class="font-bold text-amber-500 mb-1">Configuration Warning</h4>
+                    <h4 class="font-bold text-amber-500 mb-1">Disconnected</h4>
                     <p class="text-sm text-slate-400 leading-relaxed">
-                        The dashboard is struggling to connect. Please ensure <b>Anonymous Authentication</b> is enabled in your Firebase Console and your <b>FIREBASE_CONFIG</b> secret is set in GitHub.
+                        The dashboard cannot find your configuration. If you just deployed, wait 2 minutes for GitHub Pages to update.
                     </p>
                 </div>
             </div>
@@ -129,7 +128,6 @@
         </footer>
     </div>
 
-    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -154,6 +152,7 @@
 
         // Configuration Handling
         // THE PLACEHOLDER BELOW IS REPLACED BY GITHUB ACTIONS ON DEPLOYMENT
+        // DO NOT HARDCODE YOUR KEYS HERE MANUALLY
         const configStr = `GITHUB_FIREBASE_CONFIG_PLACEHOLDER`;
         let config = null;
 
@@ -194,8 +193,8 @@
             if (window.lucide) lucide.createIcons();
 
             if (!config || !config.apiKey) {
-                setStatus('error', 'Config Missing');
-                console.warn("AlgoPulse: No Firebase configuration found. Please check GitHub Secrets.");
+                setStatus('error', 'Disconnected');
+                document.getElementById('setup-warning').classList.remove('hidden');
                 return;
             }
 
@@ -205,29 +204,21 @@
                 
                 db = firebase.firestore();
                 auth = firebase.auth();
-                
-                // Anonymous Auth MUST be enabled in Firebase Console (Authentication > Sign-in method)
                 await auth.signInAnonymously();
                 
                 setStatus('success', 'Live Feed');
                 document.getElementById('setup-warning').classList.add('hidden');
                 
-                // Real-time counter
                 db.collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('subscribers')
                     .onSnapshot(snap => { 
                         document.getElementById('global-count').innerText = snap.size; 
                     }, err => {
                         console.error("AlgoPulse: Snapshot error:", err);
-                        if (err.code === 'permission-denied') {
-                            setStatus('error', 'Permission Denied');
-                            document.getElementById('setup-warning').classList.remove('hidden');
-                        }
                     });
 
             } catch(e) {
                 console.error("AlgoPulse: Connection Error:", e);
-                setStatus('error', e.code || 'Auth Error');
-                document.getElementById('setup-warning').classList.remove('hidden');
+                setStatus('error', 'Auth Error');
             }
         }
 
@@ -286,12 +277,12 @@
                 });
                 msg.classList.remove('hidden');
                 msg.className = "mt-6 p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/50 text-emerald-400 text-sm font-bold flex items-center gap-3";
-                msg.innerHTML = `<i data-lucide="check-circle" class="w-5 h-5"></i> Success! Pulse initialized. Check your inbox at 7 AM IST.`;
+                msg.innerHTML = `<i data-lucide="check-circle" class="w-5 h-5"></i> Success! Pulse initialized.`;
                 document.getElementById('email').value = '';
                 if (window.lucide) lucide.createIcons();
             } catch (err) { 
                 console.error("AlgoPulse: Enrollment error:", err);
-                alert("Subscription failed. Check console for details."); 
+                alert("Subscription failed."); 
             }
             finally { btn.disabled = false; btn.innerText = 'Start Pulse'; }
         };
@@ -329,7 +320,7 @@
         }
 
         async function deleteSub(id) {
-            if (confirm("Cancel this pulse? Your streak will be lost.")) {
+            if (confirm("Cancel this pulse?")) {
                 try {
                     await db.collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('subscribers').doc(id).delete();
                     lookupUser();
@@ -337,7 +328,6 @@
             }
         }
 
-        // Auto-init
         init();
     </script>
 </body>
