@@ -1,19 +1,12 @@
-name: AlgoPulse - Dual Daily Dispatch
+name: AlgoPulse - Daily Dispatch
 
 on:
   schedule:
-    - cron: '30 1 * * *'  # 7:00 AM IST (Challenge)
-    - cron: '30 14 * * *' # 8:00 PM IST (Solution)
+    - cron: '30 1 * * *'  # 7:00 AM IST
+    - cron: '30 14 * * *' # 8:00 PM IST
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      mode:
-        description: 'Manual Trigger Mode'
-        required: true
-        default: 'morning'
-        type: choice
-        options: [morning, solution]
 
 permissions:
   contents: write
@@ -21,53 +14,55 @@ permissions:
   id-token: write
 
 jobs:
-  run-bot:
+  run-logic:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      - run: pip install -r requirements.txt
+      - run: pip install requests firebase-admin
       - name: Dispatch
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
-          if [ "${{ github.event.inputs.mode }}" != "" ]; then
-            MODE="${{ github.event.inputs.mode }}"
-          else
-            # Automatically detect mode based on UTC hour
-            HOUR=$(date +%H)
-            if [ "$HOUR" -lt "12" ]; then MODE="morning"; else MODE="solution"; fi
-          fi
-          echo "Running AlgoPulse in $MODE mode..."
+          HOUR=$(date +%H)
+          if [ "$HOUR" -lt "12" ]; then MODE="morning"; else MODE="solution"; fi
           python daily_question.py --mode $MODE
 
-  deploy-dashboard:
+  deploy-interface:
     runs-on: ubuntu-latest
-    needs: run-bot
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    needs: run-logic
     steps:
       - uses: actions/checkout@v4
-      - name: Inject Firebase Config
+      - name: Inject Configuration
         env:
-          FIREBASE_CONFIG_DATA: ${{ secrets.FIREBASE_CONFIG }}
+          FIREBASE_CONFIG: ${{ secrets.FIREBASE_CONFIG }}
         run: |
+          # This replaces the placeholder with the actual JSON string from your secrets
+          # It only happens in the temporary action runner, not in your Git history!
           python -c "
           import os
-          f = open('index.html', 'r'); c = f.read(); f.close()
-          nc = c.replace('GITHUB_FIREBASE_CONFIG_PLACEHOLDER', os.environ.get('FIREBASE_CONFIG_DATA', '{}'))
-          f = open('index.html', 'w'); f.write(nc); f.close()
+          f = open('index.html', 'r')
+          content = f.read()
+          f.close()
+          
+          config = os.environ.get('FIREBASE_CONFIG', '{}')
+          placeholder = 'configPlaceholder = \`GITHUB_FIREBASE_CONFIG_PLACEHOLDER\`'
+          replacement = f'configPlaceholder = \`{config}\`'
+          
+          if 'GITHUB_FIREBASE_CONFIG_PLACEHOLDER' in content:
+              new_content = content.replace(placeholder, replacement)
+              with open('index.html', 'w') as f:
+                  f.write(new_content)
+              print('✅ Configuration injected.')
+          else:
+              print('⚠️ Placeholder not found.')
           "
-      - uses: actions/configure-pages@v4
       - uses: actions/upload-pages-artifact@v3
         with:
           path: '.'
       - uses: actions/deploy-pages@v4
-        id: deployment
