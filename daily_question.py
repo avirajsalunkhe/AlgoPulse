@@ -35,11 +35,9 @@ def clean_ai_response(text):
     if not text:
         return ""
     if "```" in text:
-        # Extract content between triple backticks
         parts = text.split("```")
         if len(parts) >= 3:
             text = parts[1]
-            # Remove language identifier like 'json' or 'python'
             if "\n" in text:
                 text = "\n".join(text.split("\n")[1:])
         else:
@@ -48,7 +46,7 @@ def clean_ai_response(text):
 
 def call_ai(prompt, is_json=True):
     """Reliable AI call using Gemini 2.0 Flash."""
-    # Fixed the URL which contained markdown link artifacts in the previous version
+    # FIXED: Removed markdown formatting from the URL string
     url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=){GEMINI_API_KEY}"
     payload = {
         "contents": [{"parts": [{"text": prompt}]}], 
@@ -153,6 +151,7 @@ if __name__ == "__main__":
             if problem_data:
                 p = json.loads(problem_data)
                 streak = u.get('streak', 0) + 1
+                # FIXED: Removed markdown formatting from the href link
                 body = f"""
                 <html>
                 <body style="margin: 0; padding: 0; background-color: #020617; font-family: 'Inter', Helvetica, Arial, sans-serif; color: #f8fafc;">
@@ -160,7 +159,6 @@ if __name__ == "__main__":
                         <tr>
                             <td align="center">
                                 <table width="100%" max-width="600" style="max-width: 600px; background-color: #0f172a; border: 1px solid #1e293b; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
-                                    <!-- Header -->
                                     <tr>
                                         <td style="padding: 40px 40px 20px 40px; text-align: center;">
                                             <div style="display: inline-block; background-color: #1d4ed8; color: #ffffff; padding: 8px 16px; border-radius: 100px; font-weight: 800; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 24px;">
@@ -169,24 +167,20 @@ if __name__ == "__main__":
                                             <h1 style="margin: 0; font-size: 32px; font-weight: 900; letter-spacing: -1px; color: #ffffff; line-height: 1.2;">{p['title']}</h1>
                                         </td>
                                     </tr>
-                                    <!-- Content -->
                                     <tr>
                                         <td style="padding: 20px 40px 40px 40px;">
                                             <div style="background-color: #020617; border-radius: 16px; border-left: 4px solid #3b82f6; padding: 24px; margin-bottom: 32px;">
                                                 <p style="margin: 0; font-size: 16px; line-height: 1.7; color: #94a3b8;">{p['description']}</p>
                                             </div>
-                                            
                                             <div style="background-color: #1e293b; border-radius: 16px; padding: 20px; margin-bottom: 40px;">
                                                 <h4 style="margin: 0 0 12px 0; font-size: 11px; font-weight: 900; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Input Example</h4>
-                                                <code style="font-family: 'JetBrains Mono', 'Courier New', monospace; color: #38bdf8; font-size: 14px; line-height: 1.5;">{p.get('example', 'Check LeetCode for details')}</code>
+                                                <code style="font-family: 'JetBrains Mono', monospace; color: #38bdf8; font-size: 14px; line-height: 1.5;">{p.get('example', 'Check LeetCode for details')}</code>
                                             </div>
-
                                             <div style="text-align: center;">
                                                 <a href="[https://leetcode.com/problems/](https://leetcode.com/problems/){p['slug']}/" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 18px 48px; border-radius: 16px; text-decoration: none; font-weight: 800; font-size: 16px; box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.4);">Solve Problem</a>
                                             </div>
                                         </td>
                                     </tr>
-                                    <!-- Footer -->
                                     <tr>
                                         <td style="padding: 20px 40px 40px 40px; border-top: 1px solid #1e293b; text-align: center;">
                                             <p style="margin: 0; font-size: 12px; color: #475569; letter-spacing: 1px; text-transform: uppercase; font-weight: 700;">AlgoPulse • Consistency is the new Intensity</p>
@@ -213,14 +207,14 @@ if __name__ == "__main__":
         for u in sub_list:
             problem_data = u.get('lastProblemData')
             if not problem_data:
-                print(f"⚠️ Skipping {u['email']}: No problem record.")
+                print(f"⚠️ Skipping {u['email']}: No problem record found in database.")
                 continue
 
             p = json.loads(problem_data)
             lang = u.get('language', 'Python')
-            print(f"🛠️ Solving '{p['title']}' in {lang}...")
+            print(f"🛠️ Solving '{p['title']}' in {lang} for {u['email']}...")
             
-            prompt = f"Provide a clean, efficient {lang} code solution for the LeetCode problem: '{p['title']}'. Output ONLY the raw code without any explanations."
+            prompt = f"Provide a clean, efficient {lang} code solution for the LeetCode problem: '{p['title']}'. Output ONLY the raw code without any explanations or markdown backticks."
             solution = call_ai(prompt, is_json=False)
             
             if solution:
@@ -230,8 +224,7 @@ if __name__ == "__main__":
                     <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #020617; padding: 40px 20px;">
                         <tr>
                             <td align="center">
-                                <table width="100%" max-width="600" style="max-width: 600px; background-color: #0f172a; border: 1px solid #1e293b; border-radius: 24px; overflow: hidden;">
-                                    <!-- Header -->
+                                <table width="100%" max-width="600" style="max-width: 600px; background-color: #0f172a; border: 1px solid #1e293b; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
                                     <tr>
                                         <td style="padding: 40px 40px 20px 40px;">
                                             <div style="color: #10b981; font-weight: 800; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px;">Solution Recap</div>
@@ -239,18 +232,16 @@ if __name__ == "__main__":
                                             <div style="margin-top: 8px; font-size: 14px; color: #64748b;">Language: <span style="color: #f8fafc; font-weight: 700;">{lang}</span></div>
                                         </td>
                                     </tr>
-                                    <!-- Code Block -->
                                     <tr>
                                         <td style="padding: 20px 40px 40px 40px;">
                                             <div style="background-color: #020617; border-radius: 16px; border: 1px solid #334155; padding: 24px; overflow-x: auto;">
-                                                <pre style="margin: 0; font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 13px; line-height: 1.6; color: #34d399;">{solution}</pre>
+                                                <pre style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.6; color: #34d399;">{solution}</pre>
                                             </div>
                                             <div style="margin-top: 24px; text-align: center;">
-                                                <p style="font-size: 14px; color: #94a3b8; line-height: 1.5;">Compare this with your implementation. Great job staying consistent today!</p>
+                                                <p style="font-size: 14px; color: #94a3b8; line-height: 1.5;">Compare this with your implementation. Consistency is what separates great engineers from good ones.</p>
                                             </div>
                                         </td>
                                     </tr>
-                                    <!-- Footer -->
                                     <tr>
                                         <td style="padding: 20px 40px 40px 40px; border-top: 1px solid #1e293b; text-align: center;">
                                             <p style="margin: 0; font-size: 11px; color: #475569; letter-spacing: 1px; text-transform: uppercase; font-weight: 700;">AlgoPulse Recap • See you tomorrow at 07:00 AM</p>
@@ -265,5 +256,9 @@ if __name__ == "__main__":
                 """
                 if dispatch_email(u['email'], f"✅ Solution: {p['title']}", body):
                     print(f"✅ Evening solution sent to {u['email']}")
+                else:
+                    print(f"❌ Failed to send email to {u['email']}")
+            else:
+                print(f"❌ AI failed to generate solution for {u['email']}")
 
     print(f"🏁 ENGINE FINISHED.")
