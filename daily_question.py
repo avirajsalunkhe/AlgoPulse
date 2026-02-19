@@ -60,8 +60,9 @@ def call_ai(prompt, is_json=True):
     """
     
     # 1. Try Groq (Now Primary)
+    print(f"🔍 AI: Checking Groq Status...")
     if GROQ_API_KEY:
-        print(f"🤖 AI: Attempting Groq Cloud (Llama 3.3)...")
+        print(f"🤖 AI: GROQ_API_KEY detected (Length: {len(GROQ_API_KEY)}). Attempting Groq...")
         # FIXED: Clean raw URL string. Absolutely no markdown brackets.
         groq_url = "[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)"
         headers = {
@@ -83,17 +84,18 @@ def call_ai(prompt, is_json=True):
                 print("✅ AI: Groq response received.")
                 return clean_ai_response(raw_text)
             else:
-                print(f"⚠️ AI: Groq failed (Status {res.status_code}). Response: {res.text[:100]}")
+                print(f"⚠️ AI: Groq failed with Status {res.status_code}. Response: {res.text[:150]}")
         except Exception as e:
-            print(f"⚠️ AI: Groq connection error: {e}")
+            print(f"⚠️ AI: Groq connection error (Check URL/Network): {e}")
     else:
-        print("⚠️ AI: GROQ_API_KEY is not set.")
+        print("⚠️ AI: GROQ_API_KEY is NOT set in environment variables. Verify GitHub Secrets.")
 
     # 2. Fallback to Gemini
+    print(f"🔄 AI: Falling back to Gemini...")
     if GEMINI_API_KEY:
-        print(f"🔄 AI: Falling back to Gemini 2.0 Flash...")
         # FIXED: Clean raw URL string. Absolutely no markdown brackets.
         gemini_url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=){GEMINI_API_KEY}"
+        print(f"🤖 AI: Attempting Gemini 2.0 Flash...")
         
         payload = {
             "contents": [{"parts": [{"text": prompt}]}], 
@@ -109,11 +111,11 @@ def call_ai(prompt, is_json=True):
                 print("✅ AI: Gemini response received.")
                 return clean_ai_response(raw_text)
             else:
-                print(f"❌ AI: Gemini failed (Status {res.status_code}).")
+                print(f"❌ AI: Gemini failed with Status {res.status_code}. Response: {res.text[:150]}")
         except Exception as e:
-            print(f"❌ AI: Gemini connection error: {e}")
+            print(f"❌ AI: Gemini connection error (Check URL/Network): {e}")
     else:
-        print("⚠️ AI: GEMINI_API_KEY is not set.")
+        print("⚠️ AI: GEMINI_API_KEY is NOT set.")
 
     print("❌ AI: All AI providers failed.")
     return None
