@@ -14,6 +14,9 @@
         .card-selected { border-color: #3b82f6 !important; background: #1e293b !important; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
         .status-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #020617; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen">
@@ -27,7 +30,7 @@
                     <h1 class="text-2xl font-black tracking-tighter uppercase italic">Algo<span class="text-blue-500 not-italic">Pulse</span></h1>
                     <div class="flex items-center gap-2 mt-1">
                         <div id="status-dot" class="w-1.5 h-1.5 rounded-full bg-slate-700"></div>
-                        <p id="status-text" class="text-[10px] text-slate-500 font-black uppercase tracking-widest">Connecting...</p>
+                        <p id="status-text" class="text-[10px] text-slate-500 font-black uppercase tracking-widest">System Booting...</p>
                     </div>
                 </div>
             </div>
@@ -38,8 +41,8 @@
         </header>
 
         <main id="tab-enroll" class="animate-in fade-in duration-500">
-            <section class="mb-12 text-center md:text-left">
-                <h2 class="text-4xl md:text-5xl font-black mb-4 tracking-tight">Consistency <span class="text-slate-600 text-3xl">is the</span> <br class="hidden md:block">New Intensity.</h2>
+            <section class="mb-12">
+                <h2 class="text-4xl md:text-5xl font-black mb-4 tracking-tight">Consistency <span class="text-slate-600">is the</span> New Intensity.</h2>
                 <p class="text-slate-400 max-w-2xl text-lg leading-relaxed">Master logic and DSA with a curated problem at 7 AM and an optimized solution at 8 PM daily.</p>
             </section>
 
@@ -52,10 +55,10 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div>
-                            <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">2. Difficulty</h3>
+                            <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">2. Level</h3>
                             <div class="flex p-1 bg-slate-900 border border-slate-800 rounded-xl" id="difficulty-picker">
                                 <button onclick="setDifficulty('Easy')" id="diff-Easy" class="flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest">Easy</button>
-                                <button onclick="setDifficulty('Medium')" id="diff-Medium" class="flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest card-selected">Medium</button>
+                                <button onclick="setDifficulty('Medium')" id="diff-Medium" class="flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest card-selected text-white">Medium</button>
                                 <button onclick="setDifficulty('Hard')" id="diff-Hard" class="flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest">Hard</button>
                             </div>
                         </div>
@@ -113,12 +116,14 @@
         </footer>
     </div>
 
+    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 
     <script>
-        const APP_ID = 'algopulse-v1';
+        // APP_ID must match daily_question.py exactly
+        const APP_ID = 'leetcode-dsa-bot';
         const TOPICS = [
             { id: 'LogicBuilding', name: 'Logic Building', icon: 'brain', color: 'text-amber-400' },
             { id: 'Arrays', name: 'Arrays & Hashing', icon: 'layout-grid', color: 'text-emerald-400' },
@@ -135,41 +140,75 @@
         let selectedDifficulty = 'Medium';
         let db;
 
+        // Configuration Handling
         const configStr = `GITHUB_FIREBASE_CONFIG_PLACEHOLDER`;
         let config = null;
+
         try {
-            if (typeof __firebase_config !== 'undefined' && __firebase_config) config = JSON.parse(__firebase_config);
-            else if (configStr.startsWith('{')) config = JSON.parse(configStr);
-        } catch(e) {}
+            // Priority 1: Canvas Environment
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                config = JSON.parse(__firebase_config);
+            } 
+            // Priority 2: GitHub Injected Config
+            else if (configStr.startsWith('{')) {
+                config = JSON.parse(configStr);
+            }
+        } catch(e) { console.error("Config Parse Error:", e); }
 
         function setStatus(type, text) {
             const dot = document.getElementById('status-dot');
             const statusText = document.getElementById('status-text');
+            if (!dot || !statusText) return;
+
             statusText.innerText = text;
             if (type === 'success') {
                 dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]";
                 statusText.className = "text-[10px] text-emerald-500 font-black uppercase tracking-widest";
+            } else if (type === 'error') {
+                dot.className = "w-1.5 h-1.5 rounded-full bg-red-500";
+                statusText.className = "text-[10px] text-red-500 font-black uppercase tracking-widest";
             } else {
                 dot.className = "w-1.5 h-1.5 rounded-full bg-slate-700 status-pulse";
+                statusText.className = "text-[10px] text-slate-500 font-black uppercase tracking-widest";
             }
         }
 
         async function init() {
             renderTopics();
             if (window.lucide) lucide.createIcons();
-            if (!config) { setStatus('pending', 'Connecting...'); return; }
+
+            // If no config, we can't connect.
+            if (!config) {
+                setStatus('error', 'Configuration Missing');
+                console.warn("No Firebase configuration found. Ensure secrets are set in GitHub.");
+                return;
+            }
+
             try {
+                setStatus('pending', 'Connecting...');
                 if (!firebase.apps.length) firebase.initializeApp(config);
+                
                 db = firebase.firestore();
+                // Crucial: Anonymous Auth MUST be enabled in Firebase Console
                 await firebase.auth().signInAnonymously();
+                
                 setStatus('success', 'Live Feed');
+                
+                // Real-time counter
                 db.collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('subscribers')
-                    .onSnapshot(snap => { document.getElementById('global-count').innerText = snap.size; });
-            } catch(e) { setStatus('error', 'Auth Error'); }
+                    .onSnapshot(snap => { 
+                        document.getElementById('global-count').innerText = snap.size; 
+                    }, err => console.error("Snapshot error:", err));
+
+            } catch(e) {
+                console.error("Connection Error:", e);
+                setStatus('error', 'Auth Failed');
+            }
         }
 
         function renderTopics() {
             const grid = document.getElementById('topic-grid');
+            if (!grid) return;
             grid.innerHTML = TOPICS.map(t => `
                 <div onclick="selectTopic('${t.id}')" class="cursor-pointer p-4 rounded-xl border transition-all ${selectedTopic === t.id ? 'card-selected border-blue-500' : 'bg-slate-900/30 border-slate-800 hover:border-slate-700'}">
                     <i data-lucide="${t.icon}" class="mb-2 w-5 h-5 ${t.color}"></i>
@@ -180,24 +219,32 @@
         }
 
         function selectTopic(id) { selectedTopic = id; renderTopics(); }
+        
         function setDifficulty(lvl) {
             selectedDifficulty = lvl;
             ['Easy', 'Medium', 'Hard'].forEach(d => {
-                document.getElementById(`diff-${d}`).classList.remove('card-selected', 'text-white');
+                const b = document.getElementById(`diff-${d}`);
+                if (b) b.classList.remove('card-selected', 'text-white');
             });
-            document.getElementById(`diff-${lvl}`).classList.add('card-selected', 'text-white');
+            const active = document.getElementById(`diff-${lvl}`);
+            if (active) active.classList.add('card-selected', 'text-white');
         }
 
         function switchTab(tab) {
-            document.getElementById('tab-enroll').className = tab === 'enroll' ? '' : 'hidden-tab';
-            document.getElementById('tab-manage').className = tab === 'manage' ? 'max-w-2xl mx-auto' : 'hidden-tab';
+            const enroll = document.getElementById('tab-enroll');
+            const manage = document.getElementById('tab-manage');
+            if (enroll && manage) {
+                enroll.className = tab === 'enroll' ? '' : 'hidden-tab';
+                manage.className = tab === 'manage' ? 'max-w-2xl mx-auto' : 'hidden-tab';
+            }
             document.getElementById('nav-enroll').className = `px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${tab === 'enroll' ? 'active-tab' : 'text-slate-500'}`;
             document.getElementById('nav-manage').className = `px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${tab === 'manage' ? 'active-tab' : 'text-slate-500'}`;
         }
 
         document.getElementById('enroll-form').onsubmit = async (e) => {
             e.preventDefault();
-            if (!db) return;
+            if (!db) { alert("Database not connected."); return; }
+            
             const btn = document.getElementById('btn-enroll');
             const email = document.getElementById('email').value.toLowerCase().trim();
             const language = document.getElementById('language-picker').value;
@@ -215,7 +262,11 @@
                 msg.className = "mt-6 p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/50 text-emerald-400 text-sm font-bold flex items-center gap-3";
                 msg.innerHTML = `<i data-lucide="check-circle" class="w-5 h-5"></i> Success! Pulse initialized.`;
                 document.getElementById('email').value = '';
-            } catch (err) { alert("Error connecting to database."); }
+                if (window.lucide) lucide.createIcons();
+            } catch (err) { 
+                console.error("Enroll error:", err);
+                alert("Subscription failed. Check console for details."); 
+            }
             finally { btn.disabled = false; btn.innerText = 'Start Pulse'; }
         };
 
@@ -224,32 +275,43 @@
             const email = document.getElementById('lookup-email').value.toLowerCase().trim();
             const res = document.getElementById('results');
             res.innerHTML = '<div class="text-center py-10 text-slate-500 animate-pulse font-black uppercase text-[10px] tracking-widest">Searching...</div>';
+            
             try {
                 const snap = await db.collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('subscribers').where('email', '==', email).get();
                 if (snap.empty) { res.innerHTML = '<div class="text-slate-500 text-center py-10 font-bold">No active pulse found.</div>'; return; }
+                
                 res.innerHTML = snap.docs.map(doc => {
                     const d = doc.data();
                     return `<div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex justify-between items-center group">
                         <div class="flex items-center gap-4">
-                            <div class="w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-orange-500"><i data-lucide="flame" class="w-5 h-5 ${d.streak > 0 ? 'fill-current' : ''}"></i></div>
+                            <div class="w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-orange-500">
+                                <i data-lucide="flame" class="w-5 h-5 ${d.streak > 0 ? 'fill-current' : ''}"></i>
+                            </div>
                             <div>
                                 <div class="text-[10px] font-black text-blue-500 uppercase">${d.difficulty} ${d.topic}</div>
                                 <div class="text-xl font-black">${d.streak || 0} Day Streak</div>
                             </div>
                         </div>
-                        <button onclick="deleteSub('${doc.id}')" class="text-slate-600 hover:text-red-500 font-black uppercase text-[10px] p-2">Cancel</button>
+                        <button onclick="deleteSub('${doc.id}')" class="text-slate-600 hover:text-red-500 font-black uppercase text-[10px] p-2 transition-colors">Cancel</button>
                     </div>`;
                 }).join('');
                 if (window.lucide) lucide.createIcons();
-            } catch (err) { res.innerHTML = '<div class="text-red-500 text-center py-6 text-xs font-black uppercase">Search Error.</div>'; }
+            } catch (err) { 
+                console.error("Lookup error:", err);
+                res.innerHTML = '<div class="text-red-500 text-center py-6 text-xs font-black uppercase">Search Error.</div>'; 
+            }
         }
 
         async function deleteSub(id) {
-            if (confirm("Cancel this pulse?")) {
-                await db.collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('subscribers').doc(id).delete();
-                lookupUser();
+            if (confirm("Cancel this pulse? Your streak will be lost.")) {
+                try {
+                    await db.collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('subscribers').doc(id).delete();
+                    lookupUser();
+                } catch(e) { alert("Delete failed."); }
             }
         }
+
+        // Auto-init
         init();
     </script>
 </body>
