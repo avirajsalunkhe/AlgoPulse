@@ -14,9 +14,6 @@
         .card-selected { border-color: #3b82f6 !important; background: #1e293b !important; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
         .status-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #020617; }
-        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen">
@@ -30,7 +27,7 @@
                     <h1 class="text-2xl font-black tracking-tighter uppercase italic">Algo<span class="text-blue-500 not-italic">Pulse</span></h1>
                     <div class="flex items-center gap-2 mt-1">
                         <div id="status-dot" class="w-1.5 h-1.5 rounded-full bg-slate-700"></div>
-                        <p id="status-text" class="text-[10px] text-slate-500 font-black uppercase tracking-widest">System Booting...</p>
+                        <p id="status-text" class="text-[10px] text-slate-500 font-black uppercase tracking-widest text-slate-500">Connecting...</p>
                     </div>
                 </div>
             </div>
@@ -40,21 +37,19 @@
             </nav>
         </header>
 
-        <main id="tab-enroll" class="animate-in fade-in duration-500">
+        <!-- Main Enrollment UI -->
+        <main id="tab-enroll">
             <section class="mb-12">
-                <h2 class="text-4xl md:text-5xl font-black mb-4 tracking-tight">Consistency <span class="text-slate-600 text-3xl md:text-5xl">is the</span> <br class="hidden md:block">New Intensity.</h2>
+                <h2 class="text-4xl md:text-5xl font-black mb-4 tracking-tight">Consistency <span class="text-slate-600">is the</span> <br class="hidden md:block">New Intensity.</h2>
                 <p class="text-slate-400 max-w-2xl text-lg leading-relaxed">Master logic and DSA with a curated problem at 7 AM and an optimized solution at 8 PM daily.</p>
             </section>
 
+            <!-- Disconnected Alert -->
             <div id="setup-warning" class="hidden mb-10 bg-amber-950/20 border border-amber-800/50 p-6 rounded-3xl flex gap-4 items-start">
-                <div class="bg-amber-500/10 p-2 rounded-lg text-amber-500">
-                    <i data-lucide="alert-triangle" class="w-5 h-5"></i>
-                </div>
+                <div class="bg-amber-500/10 p-2 rounded-lg text-amber-500"><i data-lucide="alert-triangle" class="w-5 h-5"></i></div>
                 <div>
-                    <h4 class="font-bold text-amber-500 mb-1">Disconnected</h4>
-                    <p class="text-sm text-slate-400 leading-relaxed">
-                        The dashboard cannot find your configuration. If you just deployed, wait 2 minutes for GitHub Pages to update.
-                    </p>
+                    <h4 class="font-bold text-amber-500 mb-1 italic tracking-tight">System Offline</h4>
+                    <p class="text-sm text-slate-400 leading-relaxed">The dashboard is not connected to Firebase. Ensure <b>FIREBASE_CONFIG</b> is set in GitHub Secrets and your action has completed.</p>
                 </div>
             </div>
 
@@ -109,11 +104,12 @@
             </div>
         </main>
 
+        <!-- Manage Tab -->
         <main id="tab-manage" class="hidden-tab max-w-2xl mx-auto">
             <div class="bg-slate-900 border border-slate-800 rounded-3xl p-8 md:p-12 space-y-10">
                 <div class="text-center">
-                    <h3 class="text-2xl font-black mb-2 italic">Pulse Manager</h3>
-                    <p class="text-sm text-slate-500 font-medium">Lookup your subscription or check your streak.</p>
+                    <h3 class="text-2xl font-black mb-2 italic tracking-tighter">Subscription Manager</h3>
+                    <p class="text-sm text-slate-500 font-medium">Lookup your pulse or manage your streak.</p>
                 </div>
                 <div class="flex flex-col md:flex-row gap-4">
                     <input type="email" id="lookup-email" placeholder="Email address..." class="flex-1 bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 outline-none">
@@ -124,10 +120,11 @@
         </main>
 
         <footer class="mt-32 pt-10 border-t border-slate-900 text-center">
-            <p class="text-slate-600 text-[10px] font-black uppercase tracking-widest italic text-center">AlgoPulse Engine • Built by Aviraj Salunkhe</p>
+            <p class="text-slate-600 text-[10px] font-black uppercase tracking-widest italic">AlgoPulse Engine • Built by Aviraj Salunkhe</p>
         </footer>
     </div>
 
+    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -150,28 +147,27 @@
         let selectedDifficulty = 'Medium';
         let db;
 
-        // Configuration Handling
-        // THE PLACEHOLDER BELOW IS REPLACED BY GITHUB ACTIONS ON DEPLOYMENT
-        // DO NOT HARDCODE YOUR KEYS HERE MANUALLY
-        const configStr = `GITHUB_FIREBASE_CONFIG_PLACEHOLDER`;
+        // THE SECURE WAY:
+        // This string is a placeholder. GitHub Actions replaces this with your 
+        // actual secret ONLY during the build process on the server.
+        const configPlaceholder = `GITHUB_FIREBASE_CONFIG_PLACEHOLDER`;
         let config = null;
 
         try {
-            // Priority 1: Canvas Environment
+            // Priority 1: Check environment global (for Preview/Canvas)
             if (typeof __firebase_config !== 'undefined' && __firebase_config) {
                 config = JSON.parse(__firebase_config);
             } 
-            // Priority 2: GitHub Action replacement
-            else if (configStr && configStr.startsWith('{')) {
-                config = JSON.parse(configStr);
+            // Priority 2: Check for injected secret from GitHub Action
+            else if (configPlaceholder && configPlaceholder.startsWith('{')) {
+                config = JSON.parse(configPlaceholder);
             }
-        } catch(e) { console.error("AlgoPulse: Config Parse Error:", e); }
+        } catch(e) { console.error("AlgoPulse: Config Parse Failure", e); }
 
         function setStatus(type, text) {
             const dot = document.getElementById('status-dot');
             const statusText = document.getElementById('status-text');
             if (!dot || !statusText) return;
-
             statusText.innerText = text;
             if (type === 'success') {
                 dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]";
@@ -179,12 +175,8 @@
             } else if (type === 'error') {
                 dot.className = "w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]";
                 statusText.className = "text-[10px] text-red-500 font-black uppercase tracking-widest";
-            } else if (type === 'pending') {
-                dot.className = "w-1.5 h-1.5 rounded-full bg-blue-500 status-pulse shadow-[0_0_8px_rgba(59,130,246,0.5)]";
-                statusText.className = "text-[10px] text-blue-500 font-black uppercase tracking-widest";
             } else {
-                dot.className = "w-1.5 h-1.5 rounded-full bg-slate-700 shadow-none";
-                statusText.className = "text-[10px] text-slate-500 font-black uppercase tracking-widest";
+                dot.className = "w-1.5 h-1.5 rounded-full bg-slate-700 status-pulse";
             }
         }
 
@@ -199,26 +191,18 @@
             }
 
             try {
-                setStatus('pending', 'Connecting...');
                 if (!firebase.apps.length) firebase.initializeApp(config);
-                
                 db = firebase.firestore();
-                auth = firebase.auth();
-                await auth.signInAnonymously();
-                
+                // Enable Anonymous Auth in Firebase Console to make this work!
+                await firebase.auth().signInAnonymously();
                 setStatus('success', 'Live Feed');
-                document.getElementById('setup-warning').classList.add('hidden');
                 
                 db.collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('subscribers')
-                    .onSnapshot(snap => { 
-                        document.getElementById('global-count').innerText = snap.size; 
-                    }, err => {
-                        console.error("AlgoPulse: Snapshot error:", err);
-                    });
-
+                    .onSnapshot(snap => { document.getElementById('global-count').innerText = snap.size; });
             } catch(e) {
-                console.error("AlgoPulse: Connection Error:", e);
-                setStatus('error', 'Auth Error');
+                console.error("AlgoPulse Connect Error:", e);
+                setStatus('error', 'Access Denied');
+                document.getElementById('setup-warning').classList.remove('hidden');
             }
         }
 
@@ -235,24 +219,17 @@
         }
 
         function selectTopic(id) { selectedTopic = id; renderTopics(); }
-        
         function setDifficulty(lvl) {
             selectedDifficulty = lvl;
             ['Easy', 'Medium', 'Hard'].forEach(d => {
-                const b = document.getElementById(`diff-${d}`);
-                if (b) b.classList.remove('card-selected', 'text-white');
+                document.getElementById(`diff-${d}`).classList.remove('card-selected', 'text-white');
             });
-            const active = document.getElementById(`diff-${lvl}`);
-            if (active) active.classList.add('card-selected', 'text-white');
+            document.getElementById(`diff-${lvl}`).classList.add('card-selected', 'text-white');
         }
 
         function switchTab(tab) {
-            const enroll = document.getElementById('tab-enroll');
-            const manage = document.getElementById('tab-manage');
-            if (enroll && manage) {
-                enroll.className = tab === 'enroll' ? '' : 'hidden-tab';
-                manage.className = tab === 'manage' ? 'max-w-2xl mx-auto' : 'hidden-tab';
-            }
+            document.getElementById('tab-enroll').className = tab === 'enroll' ? '' : 'hidden-tab';
+            document.getElementById('tab-manage').className = tab === 'manage' ? 'max-w-2xl mx-auto' : 'hidden-tab';
             document.getElementById('nav-enroll').className = `px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${tab === 'enroll' ? 'active-tab' : 'text-slate-500'}`;
             document.getElementById('nav-manage').className = `px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${tab === 'manage' ? 'active-tab' : 'text-slate-500'}`;
             if (window.lucide) lucide.createIcons();
@@ -260,30 +237,23 @@
 
         document.getElementById('enroll-form').onsubmit = async (e) => {
             e.preventDefault();
-            if (!db) { alert("AlgoPulse: Database not connected."); return; }
-            
+            if (!db) return;
             const btn = document.getElementById('btn-enroll');
             const email = document.getElementById('email').value.toLowerCase().trim();
             const language = document.getElementById('language-picker').value;
             const msg = document.getElementById('status-msg');
-
             btn.disabled = true;
             btn.innerText = 'Syncing...';
-
             try {
                 await db.collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('subscribers').add({
                     email, topic: selectedTopic, difficulty: selectedDifficulty, language, 
                     streak: 0, status: 'active', createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
                 msg.classList.remove('hidden');
-                msg.className = "mt-6 p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/50 text-emerald-400 text-sm font-bold flex items-center gap-3";
-                msg.innerHTML = `<i data-lucide="check-circle" class="w-5 h-5"></i> Success! Pulse initialized.`;
+                msg.className = "mt-6 p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/50 text-emerald-400 text-sm font-bold";
+                msg.innerHTML = "Success! Challenge arrives at 7 AM IST.";
                 document.getElementById('email').value = '';
-                if (window.lucide) lucide.createIcons();
-            } catch (err) { 
-                console.error("AlgoPulse: Enrollment error:", err);
-                alert("Subscription failed."); 
-            }
+            } catch (err) { alert("Subscription Failed."); }
             finally { btn.disabled = false; btn.innerText = 'Start Pulse'; }
         };
 
@@ -291,43 +261,30 @@
             if (!db) return;
             const email = document.getElementById('lookup-email').value.toLowerCase().trim();
             const res = document.getElementById('results');
-            res.innerHTML = '<div class="text-center py-10 text-slate-500 animate-pulse font-black uppercase text-[10px] tracking-widest">Searching Pulse...</div>';
-            
+            res.innerHTML = '<div class="text-center py-10 text-slate-500 animate-pulse font-black uppercase text-[10px]">Searching Pulse...</div>';
             try {
                 const snap = await db.collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('subscribers').where('email', '==', email).get();
-                if (snap.empty) { res.innerHTML = '<div class="text-slate-500 text-center py-10 font-bold">No active pulse found.</div>'; return; }
-                
+                if (snap.empty) { res.innerHTML = '<div class="text-slate-500 text-center py-10 font-bold">No Records.</div>'; return; }
                 res.innerHTML = snap.docs.map(doc => {
                     const d = doc.data();
                     return `<div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex justify-between items-center group">
-                        <div class="flex items-center gap-4">
-                            <div class="w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-orange-500">
-                                <i data-lucide="flame" class="w-5 h-5 ${d.streak > 0 ? 'fill-current' : ''}"></i>
-                            </div>
-                            <div>
-                                <div class="text-[10px] font-black text-blue-500 uppercase">${d.difficulty} ${d.topic}</div>
-                                <div class="text-xl font-black">${d.streak || 0} Day Streak</div>
-                            </div>
+                        <div>
+                            <div class="text-[10px] font-black text-blue-500 uppercase">${d.difficulty} ${d.topic}</div>
+                            <div class="text-xl font-black">${d.streak || 0} Day Streak</div>
                         </div>
-                        <button onclick="deleteSub('${doc.id}')" class="text-slate-600 hover:text-red-500 font-black uppercase text-[10px] p-2 transition-colors">Cancel</button>
+                        <button onclick="deleteSub('${doc.id}')" class="text-slate-600 hover:text-red-500 font-black uppercase text-[10px]">Cancel</button>
                     </div>`;
                 }).join('');
                 if (window.lucide) lucide.createIcons();
-            } catch (err) { 
-                console.error("AlgoPulse: Lookup error:", err);
-                res.innerHTML = '<div class="text-red-500 text-center py-6 text-xs font-black uppercase">Search Error.</div>'; 
-            }
+            } catch (err) { res.innerHTML = '<div class="text-red-500 text-center py-6 text-xs font-black uppercase">Lookup Error.</div>'; }
         }
 
         async function deleteSub(id) {
-            if (confirm("Cancel this pulse?")) {
-                try {
-                    await db.collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('subscribers').doc(id).delete();
-                    lookupUser();
-                } catch(e) { alert("Delete failed."); }
+            if (confirm("Stop your daily pulse?")) {
+                await db.collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('subscribers').doc(id).delete();
+                lookupUser();
             }
         }
-
         init();
     </script>
 </body>
