@@ -63,7 +63,7 @@ def call_ai(prompt, is_json=True):
     print(f"🔍 AI: Checking Groq Status...")
     if GROQ_API_KEY:
         print(f"🤖 AI: GROQ_API_KEY detected (Length: {len(GROQ_API_KEY)}). Attempting Groq...")
-        # FIXED: Clean raw URL string. Absolutely no markdown brackets.
+        # FIXED: Clean raw URL string. No markdown brackets or parentheses.
         groq_url = "[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)"
         headers = {
             "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -93,7 +93,7 @@ def call_ai(prompt, is_json=True):
     # 2. Fallback to Gemini
     print(f"🔄 AI: Falling back to Gemini...")
     if GEMINI_API_KEY:
-        # FIXED: Clean raw URL string. Absolutely no markdown brackets.
+        # FIXED: Clean raw URL string. No markdown brackets or parentheses.
         gemini_url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=){GEMINI_API_KEY}"
         print(f"🤖 AI: Attempting Gemini 2.0 Flash...")
         
@@ -195,7 +195,7 @@ EMAIL_BASE_CSS = """
 
 def get_formal_morning_html(p, streak, difficulty, language):
     diff_color = {"Easy": "#10b981", "Medium": "#3b82f6", "Hard": "#ef4444"}.get(difficulty, "#3b82f6")
-    # FIXED: Clean raw URL string. No markdown brackets.
+    # FIXED: Clean raw URL string. No markdown brackets or parentheses.
     problem_url = f"[https://leetcode.com/problems/](https://leetcode.com/problems/){p['slug']}/"
     
     return f"""
