@@ -49,7 +49,7 @@ def clean_ai_response(text):
 
 def call_ai(prompt, is_json=True):
     """Reliable AI call using Gemini 2.0 Flash."""
-    # FIXED: Clean URL (removed markdown artifacts)
+    # FIXED: Clean URL (removed markdown artifacts that caused connection errors)
     url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=){GEMINI_API_KEY}"
     
     payload = {
@@ -240,19 +240,24 @@ if __name__ == "__main__":
     print(f"👥 Database: Found {len(sub_list)} active subscribers.")
 
     if mode == "morning":
-        # Cache unique problem requests
-        configs = set((u.get('topic', 'Arrays'), u.get('difficulty', 'Medium')) for u in sub_list)
-        packs = {f"{t}_{d}": get_problem(t, d) for t, d in configs}
+        # Cache unique problem requests by Topic and Difficulty
+        configs = {}
+        for u in sub_list:
+            t = u.get('topic', 'LogicBuilding')
+            d = u.get('difficulty', 'Medium')
+            configs[f"{t}_{d}"] = (t, d)
+
+        packs = {key: get_problem(t, d) for key, (t, d) in configs.items()}
 
         for u in sub_list:
-            key = f"{u.get('topic', 'Arrays')}_{u.get('difficulty', 'Medium')}"
+            key = f"{u.get('topic', 'LogicBuilding')}_{u.get('difficulty', 'Medium')}"
             problem_data = packs.get(key)
             if problem_data:
                 p = json.loads(problem_data)
                 streak = u.get('streak', 0) + 1
-                body = get_formal_morning_html(p, streak, u['difficulty'], u['language'])
+                body = get_formal_morning_html(p, streak, u.get('difficulty', 'Medium'), u.get('language', 'Python'))
                 
-                subject = f"Day {streak}: {p['title']} ({u['difficulty']})"
+                subject = f"Day {streak}: {p['title']} ({u.get('difficulty', 'Medium')})"
                 if dispatch_email(u['email'], subject, body):
                     sub_ref.document(u['id']).update({
                         'streak': streak,
@@ -260,7 +265,7 @@ if __name__ == "__main__":
                         'lastSentAt': datetime.now(timezone.utc)
                     })
             else:
-                print(f"⚠️ No problem found for config '{key}'")
+                print(f"⚠️ No problem found for user {u['email']} with config '{key}'")
 
     elif mode == "solution":
         for u in sub_list:
@@ -279,5 +284,7 @@ if __name__ == "__main__":
             if solution_code:
                 body = get_formal_solution_html(p, solution_code, lang)
                 dispatch_email(u['email'], f"✅ Solution: {p['title']}", body)
+            else:
+                print(f"❌ Failed to generate solution for {u['email']}")
 
     print(f"🏁 ENGINE FINISHED.")
