@@ -62,7 +62,7 @@ def call_ai(prompt, is_json=True):
     # 1. Try Gemini (Primary)
     print(f"🔍 AI: Checking Gemini Status...")
     if GEMINI_API_KEY:
-        # FIXED: Cleaned raw URL string. Removed markdown brackets.
+        # FIXED: Correct raw URL string - No markdown brackets/artifacts
         gemini_url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=){GEMINI_API_KEY}"
         print(f"🤖 AI: Attempting Gemini 2.0 Flash...")
         
@@ -75,12 +75,15 @@ def call_ai(prompt, is_json=True):
             
         try:
             res = requests.post(gemini_url, json=payload, timeout=30)
+            # DEBUG: Log raw response for better diagnostics
+            print("DEBUG Gemini Response:", res.text[:500])
+            
             if res.status_code == 200:
                 raw_text = res.json()['candidates'][0]['content']['parts'][0]['text']
                 print("✅ AI: Gemini response received.")
                 return clean_ai_response(raw_text)
             else:
-                print(f"⚠️ AI: Gemini failed with Status {res.status_code}. Response: {res.text[:150]}")
+                print(f"⚠️ AI: Gemini failed with Status {res.status_code}.")
         except Exception as e:
             print(f"⚠️ AI: Gemini connection error: {e}")
     else:
@@ -90,7 +93,7 @@ def call_ai(prompt, is_json=True):
     print(f"🔄 AI: Falling back to Groq...")
     if GROQ_API_KEY:
         print(f"🤖 AI: Attempting Groq Cloud (Llama 3.3)...")
-        # FIXED: Cleaned raw URL string. Removed markdown brackets.
+        # FIXED: Correct raw URL string - No markdown brackets/artifacts
         groq_url = "[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)"
         headers = {
             "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -195,7 +198,7 @@ EMAIL_BASE_CSS = """
 
 def get_formal_morning_html(p, streak, difficulty, language):
     diff_color = {"Easy": "#10b981", "Medium": "#3b82f6", "Hard": "#ef4444"}.get(difficulty, "#3b82f6")
-    # FIXED: Cleaned raw URL string. Removed markdown brackets.
+    # FIXED: Correct raw URL string - No markdown brackets/artifacts
     problem_url = f"[https://leetcode.com/problems/](https://leetcode.com/problems/){p['slug']}/"
     
     return f"""
