@@ -57,29 +57,38 @@ def call_ai_with_fallback(prompt, is_json=True):
     # Strategy 1: Gemini (Primary)
     if GEMINI_API_KEY:
         print("🤖 Attempting Gemini...")
-        for delay in [1, 2, 4, 8, 16]:
-            try:
-                # Updated to a more stable model version to avoid 404
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
-                payload = {
-                    "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {"temperature": 0.7}
-                }
-                if is_json:
-                    payload["generationConfig"]["responseMimeType"] = "application/json"
-                
-                res = requests.post(url, json=payload, timeout=30)
-                if res.status_code == 200:
-                    data = res.json()
-                    return data['candidates'][0]['content']['parts'][0]['text']
-                elif res.status_code == 429:
-                    print(f"⚠️ Gemini Rate Limited. Retrying in {delay}s...")
-                else:
-                    print(f"⚠️ Gemini API Error {res.status_code}: {res.text[:100]}")
-                    break
-            except Exception as e:
-                print(f"⚠️ Gemini Connection Error: {e}")
-            time.sleep(delay)
+        # Try different versions of the endpoint in case of 404
+        endpoints = [
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}",
+            f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+        ]
+        
+        for url in endpoints:
+            for delay in [1, 2, 4]:
+                try:
+                    payload = {
+                        "contents": [{"parts": [{"text": prompt}]}],
+                        "generationConfig": {"temperature": 0.7}
+                    }
+                    if is_json:
+                        payload["generationConfig"]["responseMimeType"] = "application/json"
+                    
+                    res = requests.post(url, json=payload, timeout=30)
+                    if res.status_code == 200:
+                        data = res.json()
+                        return data['candidates'][0]['content']['parts'][0]['text']
+                    elif res.status_code == 429:
+                        print(f"⚠️ Gemini Rate Limited. Retrying in {delay}s...")
+                        time.sleep(delay)
+                    elif res.status_code == 404:
+                        print(f"⚠️ Gemini endpoint 404. Trying next version...")
+                        break # Try next endpoint
+                    else:
+                        print(f"⚠️ Gemini API Error {res.status_code}: {res.text[:100]}")
+                        break
+                except Exception as e:
+                    print(f"⚠️ Gemini Connection Error: {e}")
+                    time.sleep(delay)
 
     # Strategy 2: Groq (Fallback)
     if GROQ_API_KEY:
