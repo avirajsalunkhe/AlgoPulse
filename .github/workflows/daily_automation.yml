@@ -6,7 +6,6 @@ on:
     - cron: '30 14 * * *' # 8:00 PM IST (Evening Solution)
   push:
     branches: [main]
-  # This section creates the dropdown menu in the GitHub Actions UI
   workflow_dispatch:
     inputs:
       mode:
@@ -35,11 +34,11 @@ jobs:
       - name: Dispatch
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
-          # If triggered manually, use the input. If scheduled, detect based on time.
           if [ "${{ github.event.inputs.mode }}" != "" ]; then
             MODE="${{ github.event.inputs.mode }}"
           else
@@ -47,7 +46,7 @@ jobs:
             if [ "$HOUR" -lt "12" ]; then MODE="morning"; else MODE="solution"; fi
           fi
           echo "🚀 Executing AlgoPulse in $MODE mode"
-          python daily_question.py --mode $MODE
+          python algo_pulse_dispatch.py $MODE
 
   deploy-interface:
     environment:
