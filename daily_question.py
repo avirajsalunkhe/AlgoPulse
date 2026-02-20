@@ -40,6 +40,22 @@ if not firebase_admin._apps:
 
 db = firestore.client()
 
+# --- Utility ---
+
+def clean_json_string(raw_str):
+    """Robustly extracts JSON from AI responses that might contain markdown or fluff."""
+    if not raw_str:
+        return None
+    # Remove markdown code blocks if they exist
+    clean = re.sub(r'```json\s*|\s*```', '', raw_str).strip()
+    # Try to find the first '{' or '[' and the last '}' or ']'
+    start_idx = max(clean.find('{'), clean.find('['))
+    end_idx = max(clean.rfind('}'), clean.rfind(']'))
+    
+    if start_idx != -1 and end_idx != -1:
+        return clean[start_idx:end_idx+1]
+    return clean
+
 # --- AI Providers ---
 
 def fetch_from_gemini(prompt):
@@ -121,10 +137,12 @@ def refill_question_bank(topic, difficulty):
     """Generates 5 new problems using AI with fallback and stores them in the bank."""
     print(f"🧠 Bank empty for {topic} ({difficulty}). Refilling...")
     
+    # Updated prompt to include 'slug' for LeetCode URL construction
     prompt = (
         f"Generate exactly 5 unique DSA problems for topic '{topic}' at '{difficulty}' level. "
         "Return a JSON object with a key 'problems' containing an array of 5 objects. "
-        "Each object MUST have: {title, description, constraints, examples, approach, complexity, code_snippet}. "
+        "Each object MUST have: {title, slug, description, constraints, examples, approach, complexity, code_snippet}. "
+        "The 'slug' should be a valid URL-friendly version of the title (e.g., 'two-sum' for 'Two Sum'). "
         "Complexity should be a map: {time, space}."
     )
 
@@ -201,6 +219,11 @@ def send_morning_challenge(user, problem_json):
     email = user['email']
     streak = user.get('streak', 0) + 1
     
+    # Construct LeetCode URL
+    # If the slug is present, use it; otherwise fallback to a generic search
+    slug = p.get('slug', '')
+    leetcode_url = f"https://leetcode.com/problems/{slug}/" if slug else "https://leetcode.com/problemset/all/"
+    
     body = f"""
     <div style="font-family: 'Segoe UI', sans-serif; background-color: #f8fafc; padding: 40px 10px;">
         <div style="max-width: 600px; margin: auto; background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;">
@@ -214,7 +237,11 @@ def send_morning_challenge(user, problem_json):
                 </div>
                 <h2 style="color: #1e293b; margin: 0 0 15px 0;">{p['title']}</h2>
                 <div style="color: #475569; line-height: 1.7; font-size: 15px; margin-bottom: 25px;">{p['description']}</div>
-                <a href="{DASHBOARD_URL}" style="display: block; text-align: center; background: #2563eb; color: white; padding: 15px; border-radius: 10px; text-decoration: none; font-weight: bold;">Solve Challenge</a>
+                
+                <div style="margin-top: 30px; text-align: center;">
+                    <a href="{leetcode_url}" style="display: inline-block; background: #ffa116; color: white; padding: 12px 25px; border-radius: 10px; text-decoration: none; font-weight: bold; margin-right: 10px;">Solve on LeetCode</a>
+                    <a href="{DASHBOARD_URL}" style="display: inline-block; background: #2563eb; color: white; padding: 12px 25px; border-radius: 10px; text-decoration: none; font-weight: bold;">View Dashboard</a>
+                </div>
             </div>
         </div>
     </div>
