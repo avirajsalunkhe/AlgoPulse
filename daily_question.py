@@ -14,7 +14,7 @@ from email.mime.multipart import MIMEMultipart
 
 # --- Configuration ---
 APP_ID = "leetcode-dsa-bot"
-DASHBOARD_URL = "https://avirajsalunkhe.github.io/algo-pulse/" 
+DASHBOARD_URL = "https://avirajsalunkhe.github.io/AlgoPulse/" 
 
 # Mapping secrets based on provided screenshot
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
