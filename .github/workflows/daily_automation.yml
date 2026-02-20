@@ -46,7 +46,7 @@ jobs:
             if [ "$HOUR" -lt "12" ]; then MODE="morning"; else MODE="solution"; fi
           fi
           echo "🚀 Executing AlgoPulse in $MODE mode"
-          python algo_pulse_dispatch.py $MODE
+          python daily_question.py $MODE
 
   deploy-interface:
     environment:
