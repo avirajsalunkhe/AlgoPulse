@@ -22,7 +22,6 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 SENDER_EMAIL = os.getenv("EMAIL_SENDER")
 SENDER_PASSWORD = os.getenv("EMAIL_PASSWORD")
 FIREBASE_SERVICE_ACCOUNT = os.getenv("FIREBASE_SERVICE_ACCOUNT")
-# FIREBASE_CONFIG is available in secrets but not explicitly required for Admin SDK initialization
 
 # --- Firebase Initialization ---
 if not firebase_admin._apps:
@@ -41,26 +40,10 @@ if not firebase_admin._apps:
 
 db = firestore.client()
 
-# --- Utility ---
-
-def clean_json_string(raw_str):
-    """Robustly extracts JSON from AI responses that might contain markdown or fluff."""
-    if not raw_str:
-        return None
-    # Remove markdown code blocks if they exist
-    clean = re.sub(r'```json\s*|\s*```', '', raw_str).strip()
-    # Try to find the first '{' or '[' and the last '}' or ']'
-    start_idx = max(clean.find('{'), clean.find('['))
-    end_idx = max(clean.rfind('}'), clean.rfind(']'))
-    
-    if start_idx != -1 and end_idx != -1:
-        return clean[start_idx:end_idx+1]
-    return clean
-
 # --- AI Providers ---
 
 def fetch_from_gemini(prompt):
-    """Attempt to get content from Gemini API with fallback for different versions."""
+    """Attempt to get content from Gemini API with fallback for 404s and 429s."""
     if not GEMINI_API_KEY: 
         print("⚠️ GEMINI_API_KEY missing.")
         return None
@@ -75,7 +58,7 @@ def fetch_from_gemini(prompt):
         url = f"https://generativelanguage.googleapis.com/{api_version}/models/{model}:generateContent?key={GEMINI_API_KEY}"
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.7}
+            "generationConfig": {"temperature": 0.8}
         }
         if use_json:
             payload["generationConfig"]["responseMimeType"] = "application/json"
@@ -87,22 +70,24 @@ def fetch_from_gemini(prompt):
                 print(f"✅ Gemini {model} success.")
                 return data['candidates'][0]['content']['parts'][0]['text']
             elif res.status_code == 429:
-                print(f"⚠️ Gemini {model} rate limited.")
+                print(f"    ⚠️ Gemini {model} rate limited (429).")
             elif res.status_code == 404:
-                print(f"⚠️ Gemini {model} not found (404).")
-        except Exception:
-            pass
+                print(f"    ⚠️ Gemini {model} not found (404).")
+            else:
+                print(f"    ⚠️ Gemini {model} error: {res.status_code}")
+        except Exception as e:
+            print(f"    ⚠️ Gemini connection error: {e}")
             
-        time.sleep(1)
+        time.sleep(2)
     return None
 
 def fetch_from_groq(prompt):
-    """Highly reliable fallback using Llama 3 on Groq."""
+    """Attempt to get content from Groq API (Llama 3). Highly reliable free alternative."""
     if not GROQ_API_KEY: 
-        print("ℹ️ GROQ_API_KEY not found. Ensure it is mapped in secrets.")
+        print("    ℹ️ Groq API Key not found in environment. Ensure it is mapped in daily_automation.yml.")
         return None
     
-    print(f"🚀 Attempting Groq Fallback (Llama-3)...")
+    print(f"    🚀 Attempting Groq Fallback (Llama-3)...")
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -115,18 +100,19 @@ def fetch_from_groq(prompt):
             {"role": "user", "content": prompt}
         ],
         "response_format": {"type": "json_object"},
-        "temperature": 0.5
+        "temperature": 0.7
     }
     
     try:
         res = requests.post(url, json=payload, headers=headers, timeout=30)
         if res.status_code == 200:
+            data = res.json()
             print("✅ Groq success.")
-            return res.json()['choices'][0]['message']['content']
+            return data['choices'][0]['message']['content']
         else:
-            print(f"❌ Groq failed: {res.status_code}")
+            print(f"    ⚠️ Groq failed with status {res.status_code}: {res.text}")
     except Exception as e:
-        print(f"❌ Groq connection error: {e}")
+        print(f"    ⚠️ Groq connection error: {e}")
     return None
 
 # --- Data Management ---
@@ -142,8 +128,10 @@ def refill_question_bank(topic, difficulty):
         "Complexity should be a map: {time, space}."
     )
 
-    # Try Gemini, then Fallback to Groq
+    # Try Gemini First
     raw_response = fetch_from_gemini(prompt)
+    
+    # Fallback to Groq if Gemini fails
     if not raw_response:
         raw_response = fetch_from_groq(prompt)
         
@@ -152,12 +140,18 @@ def refill_question_bank(topic, difficulty):
         return False
 
     try:
-        clean_json = clean_json_string(raw_response)
+        # Clean JSON from markdown blocks as per requested logic
+        clean_json = raw_response.strip()
+        if "```json" in clean_json:
+            clean_json = clean_json.split("```json")[1].split("```")[0].strip()
+        elif "```" in clean_json:
+            clean_json = clean_json.split("```")[1].split("```")[0].strip()
+        
         data = json.loads(clean_json)
-        problems = data.get('problems', [])
+        problems = data.get('problems', []) if isinstance(data, dict) else data
         
         if not problems:
-            print("⚠️ No problems found in JSON response.")
+            print("    ⚠️ No problems found in AI response.")
             return False
 
         bank_ref = db.collection('artifacts').document(APP_ID).collection('public').document('data').collection('question_bank')
@@ -170,10 +164,10 @@ def refill_question_bank(topic, difficulty):
                 "used": False,
                 "createdAt": datetime.now(timezone.utc)
             })
-        print(f"✅ Added {len(problems)} new problems to bank.")
+        print(f"✅ Successfully added {len(problems)} new problems to bank.")
         return True
     except Exception as e:
-        print(f"⚠️ Parsing Error: {e}")
+        print(f"    ⚠️ Error parsing AI response: {e}")
         return False
 
 def get_problem(topic, difficulty):
@@ -205,12 +199,14 @@ def get_problem(topic, difficulty):
 def send_morning_challenge(user, problem_json):
     p = json.loads(problem_json)
     email = user['email']
+    streak = user.get('streak', 0) + 1
     
     body = f"""
     <div style="font-family: 'Segoe UI', sans-serif; background-color: #f8fafc; padding: 40px 10px;">
         <div style="max-width: 600px; margin: auto; background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;">
             <div style="background: #0f172a; padding: 30px; text-align: center;">
                 <h1 style="color: #38bdf8; margin: 0; font-size: 24px;">ALGOPULSE MORNING</h1>
+                <div style="display:inline-block; margin-top:10px; background:#1e293b; color:#38bdf8; padding:4px 12px; border-radius:12px; font-weight:bold; font-size:12px;">🔥 {streak} DAY STREAK</div>
             </div>
             <div style="padding: 40px;">
                 <div style="display: inline-block; background: #f1f5f9; color: #475569; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; margin-bottom: 20px;">
