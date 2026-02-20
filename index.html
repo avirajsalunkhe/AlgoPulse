@@ -14,10 +14,16 @@
         .card-selected { border-color: #3b82f6 !important; background: #1e293b !important; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
         .status-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+        
+        /* Accordion Custom Styles */
+        .faq-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
+        .faq-open .faq-content { max-height: 200px; }
+        .faq-open .faq-icon { transform: rotate(180deg); }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen">
-    <div class="max-w-5xl mx-auto p-6 md:p-12">
+    <div class="max-w-6xl mx-auto p-6 md:p-12">
+        <!-- Header -->
         <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-16 gap-6">
             <div class="flex items-center gap-4">
                 <div class="bg-blue-600 p-2.5 rounded-xl shadow-lg shadow-blue-600/20">
@@ -27,7 +33,7 @@
                     <h1 class="text-2xl font-black tracking-tighter uppercase italic">Algo<span class="text-blue-500 not-italic">Pulse</span></h1>
                     <div class="flex items-center gap-2 mt-1">
                         <div id="status-dot" class="w-1.5 h-1.5 rounded-full bg-slate-700"></div>
-                        <p id="status-text" class="text-[10px] text-slate-500 font-black uppercase tracking-widest text-slate-500">Connecting...</p>
+                        <p id="status-text" class="text-[10px] text-slate-500 font-black uppercase tracking-widest">Connecting...</p>
                     </div>
                 </div>
             </div>
@@ -49,7 +55,7 @@
                 <div class="bg-amber-500/10 p-2 rounded-lg text-amber-500"><i data-lucide="alert-triangle" class="w-5 h-5"></i></div>
                 <div>
                     <h4 class="font-bold text-amber-500 mb-1 italic tracking-tight">System Offline</h4>
-                    <p class="text-sm text-slate-400 leading-relaxed">The dashboard is not connected to Firebase. Ensure <b>FIREBASE_CONFIG</b> is set in GitHub Secrets and your action has completed.</p>
+                    <p class="text-sm text-slate-400 leading-relaxed">The dashboard is not connected to Firebase. Ensure <b>FIREBASE_CONFIG</b> is set in GitHub Secrets.</p>
                 </div>
             </div>
 
@@ -92,6 +98,7 @@
                     <div id="status-msg" class="hidden"></div>
                 </div>
 
+                <!-- Sidebar Info Cards -->
                 <div class="lg:col-span-4 space-y-6">
                     <div class="bg-slate-900 border border-slate-800 rounded-3xl p-8">
                         <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Network Size</p>
@@ -100,7 +107,104 @@
                             <span class="text-xs font-bold text-emerald-500 uppercase tracking-widest">Users</span>
                         </div>
                     </div>
+
+                    <div class="bg-slate-900/50 border border-slate-800 rounded-3xl p-8 group hover:border-slate-700 transition-colors">
+                        <h4 class="text-amber-500 font-bold flex items-center gap-2 mb-2 italic uppercase text-xs tracking-widest">
+                            <i data-lucide="coffee" class="w-4 h-4 fill-current"></i> Support Project
+                        </h4>
+                        <p class="text-[10px] text-slate-500 leading-relaxed mb-4 font-medium uppercase tracking-tighter">Help keep AlgoPulse free for everyone learning DSA.</p>
+                        <a href="https://buymeacoffee.com/avirajsalunkhe" target="_blank" class="w-full block text-center bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-4 rounded-2xl text-xs shadow-lg shadow-amber-500/10 transition-all">Buy me a coffee</a>
+                    </div>
                 </div>
+            </div>
+
+            <!-- Why AlgoPulse? -->
+            <section class="my-24 bg-slate-900/40 border border-slate-800 rounded-3xl p-8 md:p-12 shadow-2xl backdrop-blur-sm">
+                <div class="flex items-center gap-4 mb-8">
+                    <div class="p-3 bg-blue-500/10 rounded-xl">
+                        <i data-lucide="info" class="text-blue-500 w-8 h-8"></i>
+                    </div>
+                    <h2 class="text-3xl font-black italic tracking-tighter uppercase">Why Algo<span class="text-blue-500 not-italic">Pulse</span>?</h2>
+                </div>
+                <div class="grid md:grid-cols-2 gap-12">
+                    <div class="space-y-4">
+                        <p class="text-slate-300 leading-relaxed font-medium">
+                            AlgoPulse is your <span class="text-blue-400 font-bold">daily DSA study bot</span>. We solve the biggest problem in technical preparation: <span class="italic text-white underline decoration-blue-500 decoration-2">Lack of Consistency.</span>
+                        </p>
+                        <p class="text-slate-400 leading-relaxed text-sm">
+                            Instead of doing 50 problems once a month, AlgoPulse forces you to tackle just one problem every single morning. It’s designed to build cognitive endurance and pattern recognition without the burnout.
+                        </p>
+                    </div>
+                    <div class="space-y-6">
+                        <div class="flex items-start gap-4">
+                            <span class="text-2xl">🔥</span>
+                            <div>
+                                <h3 class="text-white font-bold text-sm uppercase">Morning Dispatch</h3>
+                                <p class="text-slate-500 text-xs">7:30 AM IST: Receive a challenge tailored to your difficulty level.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-4">
+                            <span class="text-2xl">🎯</span>
+                            <div>
+                                <h3 class="text-white font-bold text-sm uppercase">Evening Analysis</h3>
+                                <p class="text-slate-500 text-xs">8:30 PM IST: Receive the optimal solution and approach to close the loop.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-4">
+                            <span class="text-2xl">🛡️</span>
+                            <div>
+                                <h3 class="text-white font-bold text-sm uppercase">AI Powered</h3>
+                                <p class="text-slate-500 text-xs">Challenges are generated and verified by Gemini & Groq AI for quality.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- FAQ Accordion -->
+            <section class="max-w-4xl mx-auto my-24 space-y-4">
+                <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-8 text-center">Frequently Asked Questions</h3>
+                
+                <div class="space-y-3">
+                    <!-- Q1 -->
+                    <div class="bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden transition-all" id="faq-1">
+                        <button onclick="toggleFaq('faq-1')" class="w-full flex justify-between items-center p-6 text-left hover:bg-slate-800/50 transition-colors">
+                            <span class="font-bold text-sm italic">Is AlgoPulse really free?</span>
+                            <i data-lucide="chevron-down" class="faq-icon transition-transform text-slate-500"></i>
+                        </button>
+                        <div class="faq-content bg-slate-950/40">
+                            <p class="p-6 text-xs text-slate-400 leading-relaxed">Yes. This is a community project built to help developers maintain discipline. There are no hidden fees or paywalls.</p>
+                        </div>
+                    </div>
+                    <!-- Q2 -->
+                    <div class="bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden transition-all" id="faq-2">
+                        <button onclick="toggleFaq('faq-2')" class="w-full flex justify-between items-center p-6 text-left hover:bg-slate-800/50 transition-colors">
+                            <span class="font-bold text-sm italic">Can I change my topic or difficulty?</span>
+                            <i data-lucide="chevron-down" class="faq-icon transition-transform text-slate-500"></i>
+                        </button>
+                        <div class="faq-content bg-slate-950/40">
+                            <p class="p-6 text-xs text-slate-400 leading-relaxed">Absolutely. Just re-enroll with the same email choosing your new settings. Or go to the 'Manage' tab to delete your old pulse and start fresh.</p>
+                        </div>
+                    </div>
+                    <!-- Q3 -->
+                    <div class="bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden transition-all" id="faq-3">
+                        <button onclick="toggleFaq('faq-3')" class="w-full flex justify-between items-center p-6 text-left hover:bg-slate-800/50 transition-colors">
+                            <span class="font-bold text-sm italic">What if I miss a daily challenge?</span>
+                            <i data-lucide="chevron-down" class="faq-icon transition-transform text-slate-500"></i>
+                        </button>
+                        <div class="faq-content bg-slate-950/40">
+                            <p class="p-6 text-xs text-slate-400 leading-relaxed">The bot keeps working, but your streak will stop increasing in the database until you start engaging again. Consistency is key!</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Social Connect -->
+            <div class="flex flex-col items-center gap-6 py-12 border-t border-slate-900">
+                <a href="https://www.linkedin.com/in/avirajsalunkhe/" target="_blank" class="flex items-center gap-3 bg-[#0077b5] hover:bg-[#006396] text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-blue-950/20">
+                    <i data-lucide="linkedin" class="w-4 h-4 fill-current"></i>
+                    Connect on LinkedIn
+                </a>
             </div>
         </main>
 
@@ -119,8 +223,8 @@
             </div>
         </main>
 
-        <footer class="mt-32 pt-10 border-t border-slate-900 text-center">
-            <p class="text-slate-600 text-[10px] font-black uppercase tracking-widest italic">AlgoPulse Engine • Built by Aviraj Salunkhe</p>
+        <footer class="mt-20 pt-10 text-center">
+            <p class="text-slate-600 text-[10px] font-black uppercase tracking-[0.3em] italic">AlgoPulse Engine • Built by Aviraj Salunkhe</p>
         </footer>
     </div>
 
@@ -147,22 +251,21 @@
         let selectedDifficulty = 'Medium';
         let db;
 
-        // THE SECURE WAY:
-        // This string is a placeholder. GitHub Actions replaces this with your 
-        // actual secret ONLY during the build process on the server.
         const configPlaceholder = `GITHUB_FIREBASE_CONFIG_PLACEHOLDER`;
         let config = null;
 
         try {
-            // Priority 1: Check environment global (for Preview/Canvas)
             if (typeof __firebase_config !== 'undefined' && __firebase_config) {
                 config = JSON.parse(__firebase_config);
-            } 
-            // Priority 2: Check for injected secret from GitHub Action
-            else if (configPlaceholder && configPlaceholder.startsWith('{')) {
+            } else if (configPlaceholder && configPlaceholder.startsWith('{')) {
                 config = JSON.parse(configPlaceholder);
             }
         } catch(e) { console.error("AlgoPulse: Config Parse Failure", e); }
+
+        function toggleFaq(id) {
+            const el = document.getElementById(id);
+            el.classList.toggle('faq-open');
+        }
 
         function setStatus(type, text) {
             const dot = document.getElementById('status-dot');
@@ -193,7 +296,6 @@
             try {
                 if (!firebase.apps.length) firebase.initializeApp(config);
                 db = firebase.firestore();
-                // Enable Anonymous Auth in Firebase Console to make this work!
                 await firebase.auth().signInAnonymously();
                 setStatus('success', 'Live Feed');
                 
@@ -251,7 +353,7 @@
                 });
                 msg.classList.remove('hidden');
                 msg.className = "mt-6 p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/50 text-emerald-400 text-sm font-bold";
-                msg.innerHTML = "Success! Challenge arrives at 7 AM IST.";
+                msg.innerHTML = "Success! Challenge arrives at 7:30 AM IST.";
                 document.getElementById('email').value = '';
             } catch (err) { alert("Subscription Failed."); }
             finally { btn.disabled = false; btn.innerText = 'Start Pulse'; }
