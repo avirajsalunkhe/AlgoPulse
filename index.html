@@ -55,7 +55,7 @@
                 <div class="bg-amber-500/10 p-2 rounded-lg text-amber-500"><i data-lucide="alert-triangle" class="w-5 h-5"></i></div>
                 <div>
                     <h4 class="font-bold text-amber-500 mb-1 italic tracking-tight">System Offline</h4>
-                    <p class="text-sm text-slate-400 leading-relaxed">The dashboard is not connected to Firebase. Ensure <b>FIREBASE_CONFIG</b> is set in GitHub Secrets.</p>
+                    <p class="text-sm text-slate-400 leading-relaxed">The dashboard is not connected to Firebase. Ensure <b>FIREBASE_CONFIG</b> is set in GitHub Secrets and your action has completed.</p>
                 </div>
             </div>
 
@@ -140,14 +140,14 @@
                             <span class="text-2xl">🔥</span>
                             <div>
                                 <h3 class="text-white font-bold text-sm uppercase">Morning Dispatch</h3>
-                                <p class="text-slate-500 text-xs">7:30 AM IST: Receive a challenge tailored to your difficulty level.</p>
+                                <p class="text-slate-500 text-xs">7:00 AM IST: Receive a challenge tailored to your difficulty level.</p>
                             </div>
                         </div>
                         <div class="flex items-start gap-4">
                             <span class="text-2xl">🎯</span>
                             <div>
                                 <h3 class="text-white font-bold text-sm uppercase">Evening Analysis</h3>
-                                <p class="text-slate-500 text-xs">8:30 PM IST: Receive the optimal solution and approach to close the loop.</p>
+                                <p class="text-slate-500 text-xs">8:00 PM IST: Receive the optimal solution and approach to close the loop.</p>
                             </div>
                         </div>
                         <div class="flex items-start gap-4">
@@ -255,9 +255,12 @@
         let config = null;
 
         try {
+            // Priority 1: Check environment global (for Preview/Canvas)
             if (typeof __firebase_config !== 'undefined' && __firebase_config) {
                 config = JSON.parse(__firebase_config);
-            } else if (configPlaceholder && configPlaceholder.startsWith('{')) {
+            } 
+            // Priority 2: Check for injected secret from GitHub Action
+            else if (configPlaceholder && configPlaceholder.startsWith('{')) {
                 config = JSON.parse(configPlaceholder);
             }
         } catch(e) { console.error("AlgoPulse: Config Parse Failure", e); }
@@ -337,6 +340,8 @@
             if (window.lucide) lucide.createIcons();
         }
 
+        const DASHBOARD_URL = "https://avirajsalunkhe.github.io/AlgoPulse/";
+
         document.getElementById('enroll-form').onsubmit = async (e) => {
             e.preventDefault();
             if (!db) return;
@@ -353,7 +358,7 @@
                 });
                 msg.classList.remove('hidden');
                 msg.className = "mt-6 p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/50 text-emerald-400 text-sm font-bold";
-                msg.innerHTML = "Success! Challenge arrives at 7:30 AM IST.";
+                msg.innerHTML = "Success! Challenge arrives at 7 AM IST.";
                 document.getElementById('email').value = '';
             } catch (err) { alert("Subscription Failed."); }
             finally { btn.disabled = false; btn.innerText = 'Start Pulse'; }
