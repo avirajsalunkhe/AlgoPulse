@@ -52,8 +52,9 @@ def clean_json_string(raw_str):
 # --- AI Providers ---
 
 def fetch_from_gemini(prompt):
-    """Attempt to get content from Gemini API with fallback for different versions and models."""
-    if not GEMINI_API_KEY: return None
+    """Attempt to get content from Gemini API with fallback for different versions."""
+    if not GEMINI_API_KEY: 
+        return None
     
     strategies = [
         ("v1beta", "gemini-2.0-flash", True),
@@ -77,21 +78,19 @@ def fetch_from_gemini(prompt):
                 print(f"✅ Gemini {model} success.")
                 return data['candidates'][0]['content']['parts'][0]['text']
             elif res.status_code == 429:
-                print(f"⚠️ Gemini {model} rate limited (429).")
+                print(f"⚠️ Gemini {model} rate limited.")
             elif res.status_code == 404:
                 print(f"⚠️ Gemini {model} not found (404).")
-            else:
-                print(f"⚠️ Gemini {model} error: {res.status_code}")
-        except Exception as e:
-            print(f"⚠️ Gemini connection error: {e}")
+        except Exception:
+            pass
             
-        time.sleep(2)
+        time.sleep(1)
     return None
 
 def fetch_from_groq(prompt):
-    """Attempt to get content from Groq API (Llama 3). Highly reliable alternative."""
+    """Highly reliable fallback using Llama 3 on Groq."""
     if not GROQ_API_KEY: 
-        print("ℹ️ Groq API Key not found in environment.")
+        print("ℹ️ Groq API Key not found. Ensure it is mapped in secrets.")
         return None
     
     print(f"🚀 Attempting Groq Fallback (Llama-3)...")
@@ -113,35 +112,34 @@ def fetch_from_groq(prompt):
     try:
         res = requests.post(url, json=payload, headers=headers, timeout=30)
         if res.status_code == 200:
-            data = res.json()
-            return data['choices'][0]['message']['content']
+            print("✅ Groq success.")
+            return res.json()['choices'][0]['message']['content']
         else:
-            print(f"⚠️ Groq failed with status {res.status_code}")
+            print(f"❌ Groq failed: {res.status_code}")
     except Exception as e:
-        print(f"⚠️ Groq connection error: {e}")
+        print(f"❌ Groq connection error: {e}")
     return None
 
 # --- Data Management ---
 
 def refill_question_bank(topic, difficulty):
-    """Generates 5 new problems for the bank when empty using fallback providers."""
+    """Generates 5 new problems using AI with fallback and stores them in the bank."""
     print(f"🧠 Bank empty for {topic} ({difficulty}). Refilling...")
     
     prompt = (
         f"Generate exactly 5 unique DSA problems for topic '{topic}' at '{difficulty}' level. "
         "Return a JSON object with a key 'problems' containing an array of 5 objects. "
-        "Each object: {title, description, constraints, examples, approach, complexity, code_snippet}. "
+        "Each object MUST have: {title, description, constraints, examples, approach, complexity, code_snippet}. "
         "Complexity should be a map: {time, space}."
     )
 
-    # Try Gemini First
+    # Try Gemini, then Fallback to Groq
     raw_response = fetch_from_gemini(prompt)
-    
-    # Fallback to Groq if Gemini fails
     if not raw_response:
         raw_response = fetch_from_groq(prompt)
         
     if not raw_response:
+        print("❌ All AI providers failed.")
         return False
 
     try:
@@ -150,11 +148,11 @@ def refill_question_bank(topic, difficulty):
         problems = data.get('problems', [])
         
         if not problems:
-            print("⚠️ No problems found in AI response.")
+            print("⚠️ No problems found in JSON response.")
             return False
 
-        # Save to Firestore Bank
         bank_ref = db.collection('artifacts').document(APP_ID).collection('public').document('data').collection('question_bank')
+        
         for p in problems:
             bank_ref.add({
                 "topic": topic,
@@ -163,14 +161,14 @@ def refill_question_bank(topic, difficulty):
                 "used": False,
                 "createdAt": datetime.now(timezone.utc)
             })
-        print(f"✅ Successfully added {len(problems)} new problems to {topic} bank.")
+        print(f"✅ Added {len(problems)} new problems to bank.")
         return True
     except Exception as e:
-        print(f"⚠️ Error parsing AI response: {e}")
+        print(f"⚠️ Parsing Error: {e}")
         return False
 
 def get_problem(topic, difficulty):
-    """Checks the database for an unused question. Refills if empty."""
+    """Retrieves an unused problem from the bank."""
     bank_ref = db.collection('artifacts').document(APP_ID).collection('public').document('data').collection('question_bank')
     
     query = bank_ref.where(filter=FieldFilter("topic", "==", topic))\
@@ -188,7 +186,7 @@ def get_problem(topic, difficulty):
         return found_doc.to_dict()["problem_data"]
     
     if refill_question_bank(topic, difficulty):
-        time.sleep(2) # Buffer for Firestore consistency
+        time.sleep(2) 
         return get_problem(topic, difficulty) 
         
     return None
@@ -242,7 +240,7 @@ def send_solution_dispatch(user, problem_json):
 
 def dispatch_email(to, subject, html_body):
     if not SENDER_EMAIL or not SENDER_PASSWORD: 
-        print(f"❌ SMTP credentials missing for {to}")
+        print(f"❌ Missing credentials for {to}")
         return False
     msg = MIMEMultipart()
     msg['Subject'] = subject
@@ -253,16 +251,16 @@ def dispatch_email(to, subject, html_body):
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as s:
             s.login(SENDER_EMAIL, SENDER_PASSWORD)
             s.sendmail(SENDER_EMAIL, to, msg.as_string())
-        print(f"📧 Email sent to {to}")
+        print(f"📧 Sent to {to}")
         return True
     except Exception as e:
-        print(f"❌ SMTP Error for {to}: {e}")
+        print(f"❌ SMTP Error: {e}")
         return False
 
 # --- Main Dispatcher ---
 
 def run_dispatch(mode="morning"):
-    print(f"🚀 Running {mode.upper()} Dispatch at {datetime.now(timezone.utc)}")
+    print(f"🚀 Dispatching {mode.upper()} at {datetime.now(timezone.utc)}")
     
     sub_ref = db.collection('artifacts').document(APP_ID).collection('public').document('data').collection('subscribers')
     subs = sub_ref.where(filter=FieldFilter('status', '==', 'active')).stream()
@@ -273,7 +271,11 @@ def run_dispatch(mode="morning"):
         data['id'] = doc.id
         active_subs.append(data)
     
-    print(f"👥 Active Subscribers: {len(active_subs)}")
+    if not active_subs:
+        print("ℹ️ No active subscribers found.")
+        return
+
+    print(f"👥 Processing {len(active_subs)} users...")
     
     problem_cache = {}
     success_count = 0
@@ -285,17 +287,14 @@ def run_dispatch(mode="morning"):
 
         if mode == "solution":
             problem_json = user.get('last_problem_data')
-            if not problem_json: continue
-            if send_solution_dispatch(user, problem_json):
+            if problem_json and send_solution_dispatch(user, problem_json):
                 success_count += 1
         else:
             if cache_key not in problem_cache:
                 problem_cache[cache_key] = get_problem(topic, difficulty)
             
             problem_json = problem_cache[cache_key]
-            if not problem_json: continue
-
-            if send_morning_challenge(user, problem_json):
+            if problem_json and send_morning_challenge(user, problem_json):
                 sub_ref.document(user['id']).update({
                     "last_problem_data": problem_json,
                     "last_sent": datetime.now(timezone.utc),
@@ -307,8 +306,8 @@ def run_dispatch(mode="morning"):
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        cmd_arg = sys.argv[1].lower()
-        mode = "morning" if "morning" in cmd_arg else "solution"
+        arg = sys.argv[1].lower()
+        mode = "solution" if "solution" in arg else "morning"
     else:
         hour = datetime.now().hour
         mode = "morning" if 4 <= hour < 14 else "solution"
