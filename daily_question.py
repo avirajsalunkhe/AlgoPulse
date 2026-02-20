@@ -200,7 +200,9 @@ def send_solution_dispatch(user, problem_json):
     return dispatch_email(email, f"✅ Solution: {p['title']}", body)
 
 def dispatch_email(to, subject, html_body):
-    if not SENDER_EMAIL or not SENDER_PASSWORD: return False
+    if not SENDER_EMAIL or not SENDER_PASSWORD: 
+        print(f"❌ Missing SMTP credentials for {to}")
+        return False
     msg = MIMEMultipart()
     msg['Subject'] = subject
     msg['From'] = f"AlgoPulse <{SENDER_EMAIL}>"
@@ -210,6 +212,7 @@ def dispatch_email(to, subject, html_body):
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as s:
             s.login(SENDER_EMAIL, SENDER_PASSWORD)
             s.sendmail(SENDER_EMAIL, to, msg.as_string())
+        print(f"📧 Email sent to {to}")
         return True
     except Exception as e:
         print(f"❌ SMTP Error for {to}: {e}")
@@ -229,9 +232,8 @@ def run_dispatch(mode="morning"):
         data['id'] = doc.id
         active_subs.append(data)
     
-    print(f"👥 Subscribers: {len(active_subs)}")
+    print(f"👥 Subscribers found: {len(active_subs)}")
     
-    # Cache problems by (topic, difficulty) to avoid redundant AI calls
     problem_cache = {}
     success_count = 0
 
@@ -240,11 +242,11 @@ def run_dispatch(mode="morning"):
         difficulty = user.get('difficulty', 'Medium')
         cache_key = f"{topic}_{difficulty}"
 
-        # In solution mode, we need the problem sent in the morning. 
-        # For simplicity, we get the 'last_problem' field from the user doc.
         if mode == "solution":
             problem_json = user.get('last_problem_data')
-            if not problem_json: continue
+            if not problem_json: 
+                print(f"⚠️ No morning problem recorded for {user['email']}. Skipping solution.")
+                continue
             
             if send_solution_dispatch(user, problem_json):
                 success_count += 1
@@ -254,7 +256,9 @@ def run_dispatch(mode="morning"):
                 problem_cache[cache_key] = get_problem(topic, difficulty)
             
             problem_json = problem_cache[cache_key]
-            if not problem_json: continue
+            if not problem_json: 
+                print(f"❌ Failed to get problem for {topic}/{difficulty}")
+                continue
 
             if send_morning_challenge(user, problem_json):
                 sub_ref.document(user['id']).update({
@@ -267,5 +271,12 @@ def run_dispatch(mode="morning"):
     print(f"🏁 Finished. Successful sends: {success_count}")
 
 if __name__ == "__main__":
-    mode = sys.argv[1] if len(sys.argv) > 1 else "morning"
+    # Automatic mode detection if no argument provided
+    if len(sys.argv) > 1:
+        mode = sys.argv[1].lower()
+    else:
+        # If running between 4 AM and 2 PM, default to morning. Else evening.
+        hour = datetime.now().hour
+        mode = "morning" if 4 <= hour < 14 else "solution"
+    
     run_dispatch(mode)
