@@ -5,6 +5,7 @@ import requests
 import firebase_admin
 import time
 import sys
+import re
 from datetime import datetime, timezone
 from firebase_admin import credentials, firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
@@ -32,6 +33,22 @@ if not firebase_admin._apps:
 
 db = firestore.client()
 
+# --- Utility ---
+
+def clean_json_string(raw_str):
+    """Robustly extracts JSON from AI responses that might contain markdown or fluff."""
+    if not raw_str:
+        return None
+    # Remove markdown code blocks if they exist
+    clean = re.sub(r'```json\s*|\s*```', '', raw_str).strip()
+    # Try to find the first '{' or '[' and the last '}' or ']'
+    start_idx = max(clean.find('{'), clean.find('['))
+    end_idx = max(clean.rfind('}'), clean.rfind(']'))
+    
+    if start_idx != -1 and end_idx != -1:
+        return clean[start_idx:end_idx+1]
+    return clean
+
 # --- AI Interaction Layer ---
 
 def call_ai_with_fallback(prompt, is_json=True):
@@ -39,6 +56,7 @@ def call_ai_with_fallback(prompt, is_json=True):
     
     # Strategy 1: Gemini (Primary)
     if GEMINI_API_KEY:
+        print("🤖 Attempting Gemini...")
         for delay in [1, 2, 4, 8, 16]:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key={GEMINI_API_KEY}"
@@ -53,20 +71,24 @@ def call_ai_with_fallback(prompt, is_json=True):
                 if res.status_code == 200:
                     data = res.json()
                     return data['candidates'][0]['content']['parts'][0]['text']
-                elif res.status_code != 429: # If not rate limited, break retry loop
+                elif res.status_code == 429:
+                    print(f"⚠️ Gemini Rate Limited. Retrying in {delay}s...")
+                else:
+                    print(f"⚠️ Gemini API Error {res.status_code}: {res.text[:100]}")
                     break
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"⚠️ Gemini Connection Error: {e}")
             time.sleep(delay)
 
     # Strategy 2: Groq (Fallback)
     if GROQ_API_KEY:
+        print("🔄 Attempting Groq Fallback...")
         try:
             url = "https://api.groq.com/openai/v1/chat/completions"
             headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
             payload = {
                 "model": "llama-3.3-70b-versatile",
-                "messages": [{"role": "system", "content": "You are a DSA expert."}, {"role": "user", "content": prompt}],
+                "messages": [{"role": "system", "content": "You are a DSA expert. Return valid JSON only."}, {"role": "user", "content": prompt}],
                 "temperature": 0.5
             }
             if is_json:
@@ -75,6 +97,8 @@ def call_ai_with_fallback(prompt, is_json=True):
             res = requests.post(url, json=payload, headers=headers, timeout=30)
             if res.status_code == 200:
                 return res.json()['choices'][0]['message']['content']
+            else:
+                print(f"❌ Groq API Error {res.status_code}: {res.text[:100]}")
         except Exception as e:
             print(f"⚠️ Groq Fallback Error: {e}")
 
@@ -86,22 +110,26 @@ def refill_question_bank(topic, difficulty):
     """Generates 5 new problems for the bank when empty."""
     print(f"🧠 Refilling bank for {topic} - {difficulty}...")
     prompt = (
-        f"Generate 5 unique DSA problems for topic '{topic}' at '{difficulty}' difficulty. "
+        f"Generate 5 unique DSA problems for topic '{topic}' at '{difficulty}' difficulty level. "
         "Return a JSON object with a key 'problems' containing an array of objects. "
-        "Each object: {title, description, constraints, examples, approach, complexity, code_snippet}."
+        "Each object MUST have: {title, description, constraints, examples, approach, complexity, code_snippet}. "
+        "Ensure descriptions are concise and formatted nicely for an email."
     )
     
     raw_res = call_ai_with_fallback(prompt)
-    if not raw_res: return False
+    if not raw_res: 
+        print("❌ AI failed to provide a response for bank refill.")
+        return False
 
     try:
-        # Clean markdown if present
-        if "```json" in raw_res:
-            raw_res = raw_res.split("```json")[1].split("```")[0].strip()
-        
-        data = json.loads(raw_res)
+        clean_json = clean_json_string(raw_res)
+        data = json.loads(clean_json)
         problems = data.get('problems', [])
         
+        if not problems:
+            print("⚠️ AI response was empty or incorrectly structured.")
+            return False
+
         bank_ref = db.collection('artifacts').document(APP_ID).collection('public').document('data').collection('question_bank')
         for p in problems:
             bank_ref.add({
@@ -111,9 +139,10 @@ def refill_question_bank(topic, difficulty):
                 "used": False,
                 "createdAt": datetime.now(timezone.utc)
             })
+        print(f"✅ Successfully added {len(problems)} problems to the bank.")
         return True
     except Exception as e:
-        print(f"❌ Parsing Error: {e}")
+        print(f"❌ Parsing Error during refill: {e}")
         return False
 
 def get_problem(topic, difficulty):
@@ -127,8 +156,9 @@ def get_problem(topic, difficulty):
         bank_ref.document(doc.id).update({"used": True, "usedAt": datetime.now(timezone.utc)})
         return doc.to_dict()["problem_data"]
 
+    # If no problem found, try refilling
     if refill_question_bank(topic, difficulty):
-        time.sleep(2)
+        time.sleep(2) # Firestore consistency delay
         return get_problem(topic, difficulty)
     return None
 
@@ -186,11 +216,11 @@ def send_solution_dispatch(user, problem_json):
                 <div style="display: flex; gap: 10px; margin-top: 20px;">
                     <div style="flex: 1; background: #f0fdf4; padding: 15px; border-radius: 8px; border: 1px solid #bbf7d0;">
                         <div style="font-size: 11px; color: #166534; font-weight: bold;">TIME</div>
-                        <div style="font-weight: bold; color: #14532d;">{p.get('complexity', {}).get('time', 'O(N)')}</div>
+                        <div style="font-weight: bold; color: #14532d;">{p.get('complexity', {}).get('time', 'O(N)') if isinstance(p.get('complexity'), dict) else 'O(N)'}</div>
                     </div>
                     <div style="flex: 1; background: #f0fdf4; padding: 15px; border-radius: 8px; border: 1px solid #bbf7d0;">
                         <div style="font-size: 11px; color: #166534; font-weight: bold;">SPACE</div>
-                        <div style="font-weight: bold; color: #14532d;">{p.get('complexity', {}).get('space', 'O(1)')}</div>
+                        <div style="font-weight: bold; color: #14532d;">{p.get('complexity', {}).get('space', 'O(1)') if isinstance(p.get('complexity'), dict) else 'O(1)'}</div>
                     </div>
                 </div>
             </div>
@@ -221,6 +251,13 @@ def dispatch_email(to, subject, html_body):
 # --- Main Execution Logic ---
 
 def run_dispatch(mode="morning"):
+    # Clean up mode just in case it's passed as '--MODE' or something similar
+    mode = mode.replace('-', '').lower()
+    if mode not in ["morning", "solution"]:
+        # Fallback to time-based detection if mode is invalid
+        hour = datetime.now().hour
+        mode = "morning" if 4 <= hour < 14 else "solution"
+
     print(f"🚀 Running {mode.upper()} Dispatch...")
     
     sub_ref = db.collection('artifacts').document(APP_ID).collection('public').document('data').collection('subscribers')
@@ -271,11 +308,17 @@ def run_dispatch(mode="morning"):
     print(f"🏁 Finished. Successful sends: {success_count}")
 
 if __name__ == "__main__":
-    # Automatic mode detection if no argument provided
     if len(sys.argv) > 1:
-        mode = sys.argv[1].lower()
+        # Check if the argument is a mode or a placeholder
+        cmd_arg = sys.argv[1].lower()
+        if cmd_arg.startswith('--'):
+            # Detect based on time if placeholder '--MODE' is passed
+            hour = datetime.now().hour
+            mode = "morning" if 4 <= hour < 14 else "solution"
+        else:
+            mode = cmd_arg
     else:
-        # If running between 4 AM and 2 PM, default to morning. Else evening.
+        # Default time-based detection
         hour = datetime.now().hour
         mode = "morning" if 4 <= hour < 14 else "solution"
     
