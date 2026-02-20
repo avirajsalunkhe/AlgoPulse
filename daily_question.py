@@ -1,156 +1,108 @@
 import os
 import json
 import smtplib
-import sys
 import requests
 import firebase_admin
 import time
+import sys
 from datetime import datetime, timezone
 from firebase_admin import credentials, firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-# ---------------- CONFIG ----------------
+# --- Configuration ---
 APP_ID = "leetcode-dsa-bot"
-
+DASHBOARD_URL = "https://avirajsalunkhe.github.io/algo-pulse" # Update as needed
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-
 SENDER_EMAIL = os.getenv("EMAIL_SENDER")
 SENDER_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
-print(f"\n--- AlgoPulse Diagnostic Start [{datetime.now(timezone.utc)}] ---")
-
-# ---------------- FIREBASE INIT ----------------
+# --- Firebase Initialization ---
 service_account_json = os.getenv("FIREBASE_SERVICE_ACCOUNT")
-
 if not firebase_admin._apps:
-    if not service_account_json:
-        print("❌ FIREBASE_SERVICE_ACCOUNT missing")
+    try:
+        cred = credentials.Certificate(json.loads(service_account_json))
+        firebase_admin.initialize_app(cred)
+        print("✅ Firebase initialized.")
+    except Exception as e:
+        print(f"❌ Firebase Init Failed: {e}")
         sys.exit(1)
-
-    cred = credentials.Certificate(json.loads(service_account_json))
-    firebase_admin.initialize_app(cred)
-    print("✅ Firebase initialized")
 
 db = firestore.client()
 
-# ---------------- UTIL ----------------
-def clean_ai_response(text):
-    if not text:
-        return ""
-    if "```" in text:
-        parts = text.split("```")
-        if len(parts) >= 3:
-            text = parts[1]
-            if "\n" in text:
-                text = "\n".join(text.split("\n")[1:])
-    return text.strip()
+# --- AI Interaction Layer ---
 
-
-# ---------------- AI CALL ----------------
-def call_ai(prompt, is_json=True):
-
-    # -------- GEMINI PRIMARY --------
+def call_ai_with_fallback(prompt, is_json=True):
+    """Calls Gemini with exponential backoff, falling back to Groq on failure."""
+    
+    # Strategy 1: Gemini (Primary)
     if GEMINI_API_KEY:
-        print("🤖 Trying Gemini...")
+        for delay in [1, 2, 4, 8, 16]:
+            try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key={GEMINI_API_KEY}"
+                payload = {
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {"temperature": 0.7}
+                }
+                if is_json:
+                    payload["generationConfig"]["responseMimeType"] = "application/json"
+                
+                res = requests.post(url, json=payload, timeout=30)
+                if res.status_code == 200:
+                    data = res.json()
+                    return data['candidates'][0]['content']['parts'][0]['text']
+                elif res.status_code != 429: # If not rate limited, break retry loop
+                    break
+            except Exception:
+                pass
+            time.sleep(delay)
 
-        gemini_url = (
-            f"https://generativelanguage.googleapis.com/v1beta/"
-            f"models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
-        )
-
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.2}
-        }
-
-        if is_json:
-            payload["generationConfig"]["responseMimeType"] = "application/json"
-
-        try:
-            res = requests.post(gemini_url, json=payload, timeout=30)
-
-            if res.status_code == 200:
-                data = res.json()
-                raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-                print("✅ Gemini success")
-                return clean_ai_response(raw_text)
-
-            print(f"⚠️ Gemini failed {res.status_code}: {res.text[:200]}")
-
-        except Exception as e:
-            print(f"⚠️ Gemini error: {e}")
-
-    else:
-        print("⚠️ GEMINI_API_KEY not set")
-
-    # -------- GROQ FALLBACK --------
+    # Strategy 2: Groq (Fallback)
     if GROQ_API_KEY:
-        print("🔄 Trying Groq...")
-
-        groq_url = "https://api.groq.com/openai/v1/chat/completions"
-
-        headers = {
-            "Authorization": f"Bearer {GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-
-        payload = {
-            "model": "llama-3.3-70b-versatile",
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.2
-        }
-
-        if is_json:
-            payload["response_format"] = {"type": "json_object"}
-
         try:
-            res = requests.post(groq_url, headers=headers, json=payload, timeout=30)
-
+            url = "https://api.groq.com/openai/v1/chat/completions"
+            headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+            payload = {
+                "model": "llama-3.3-70b-versatile",
+                "messages": [{"role": "system", "content": "You are a DSA expert."}, {"role": "user", "content": prompt}],
+                "temperature": 0.5
+            }
+            if is_json:
+                payload["response_format"] = {"type": "json_object"}
+            
+            res = requests.post(url, json=payload, headers=headers, timeout=30)
             if res.status_code == 200:
-                raw_text = res.json()["choices"][0]["message"]["content"]
-                print("✅ Groq success")
-                return clean_ai_response(raw_text)
-
-            print(f"❌ Groq failed {res.status_code}: {res.text[:200]}")
-
+                return res.json()['choices'][0]['message']['content']
         except Exception as e:
-            print(f"❌ Groq error: {e}")
+            print(f"⚠️ Groq Fallback Error: {e}")
 
-    else:
-        print("⚠️ GROQ_API_KEY not set")
-
-    print("❌ All AI providers failed")
     return None
 
+# --- Data Management ---
 
-# ---------------- QUESTION BANK ----------------
-def refill_bank(topic, difficulty):
-    print(f"🧠 Generating new problems for {topic} ({difficulty})")
-
+def refill_question_bank(topic, difficulty):
+    """Generates 5 new problems for the bank when empty."""
+    print(f"🧠 Refilling bank for {topic} - {difficulty}...")
     prompt = (
-        f"Generate exactly 5 unique LeetCode-style problems for '{topic}' "
-        f"at '{difficulty}' difficulty. "
-        "Return JSON array with fields: title, slug, description, constraints, example. "
-        "Return ONLY raw JSON."
+        f"Generate 5 unique DSA problems for topic '{topic}' at '{difficulty}' difficulty. "
+        "Return a JSON object with a key 'problems' containing an array of objects. "
+        "Each object: {title, description, constraints, examples, approach, complexity, code_snippet}."
     )
-
-    raw = call_ai(prompt, is_json=True)
-
-    if not raw:
-        return False
+    
+    raw_res = call_ai_with_fallback(prompt)
+    if not raw_res: return False
 
     try:
-        problems = json.loads(raw)
-
-        bank_ref = (
-            db.collection("artifacts").document(APP_ID)
-            .collection("public").document("data")
-            .collection("question_bank")
-        )
-
+        # Clean markdown if present
+        if "```json" in raw_res:
+            raw_res = raw_res.split("```json")[1].split("```")[0].strip()
+        
+        data = json.loads(raw_res)
+        problems = data.get('problems', [])
+        
+        bank_ref = db.collection('artifacts').document(APP_ID).collection('public').document('data').collection('question_bank')
         for p in problems:
             bank_ref.add({
                 "topic": topic,
@@ -159,110 +111,161 @@ def refill_bank(topic, difficulty):
                 "used": False,
                 "createdAt": datetime.now(timezone.utc)
             })
-
-        print(f"✅ Stored {len(problems)} problems")
         return True
-
     except Exception as e:
-        print(f"❌ Failed storing problems: {e}")
+        print(f"❌ Parsing Error: {e}")
         return False
-
 
 def get_problem(topic, difficulty):
-
-    bank_ref = (
-        db.collection("artifacts").document(APP_ID)
-        .collection("public").document("data")
-        .collection("question_bank")
-    )
-
-    query = (
-        bank_ref.where(filter=FieldFilter("topic", "==", topic))
-        .where(filter=FieldFilter("difficulty", "==", difficulty))
-        .where(filter=FieldFilter("used", "==", False))
-        .limit(1)
-        .stream()
-    )
-
+    """Fetches an unused problem or triggers a refill."""
+    bank_ref = db.collection('artifacts').document(APP_ID).collection('public').document('data').collection('question_bank')
+    query = bank_ref.where(filter=FieldFilter("topic", "==", topic))\
+                    .where(filter=FieldFilter("difficulty", "==", difficulty))\
+                    .where(filter=FieldFilter("used", "==", False)).limit(1).stream()
+    
     for doc in query:
-        bank_ref.document(doc.id).update({
-            "used": True,
-            "usedAt": datetime.now(timezone.utc)
-        })
+        bank_ref.document(doc.id).update({"used": True, "usedAt": datetime.now(timezone.utc)})
         return doc.to_dict()["problem_data"]
 
-    print("⚠️ No unused problems. Generating...")
-    if refill_bank(topic, difficulty):
+    if refill_question_bank(topic, difficulty):
         time.sleep(2)
         return get_problem(topic, difficulty)
-
     return None
 
+# --- Email Templates ---
 
-# ---------------- EMAIL ----------------
-def dispatch_email(to, subject, body):
+def send_morning_challenge(user, problem_json):
+    p = json.loads(problem_json)
+    email = user['email']
+    
+    body = f"""
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; padding: 40px 10px;">
+        <div style="max-width: 600px; margin: auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;">
+            <div style="background: #0f172a; padding: 30px; text-align: center;">
+                <h1 style="color: #38bdf8; margin: 0; font-size: 24px; letter-spacing: 1px;">ALGOPULSE MORNING</h1>
+                <p style="color: #94a3b8; margin-top: 5px;">Level Up Your DSA Daily</p>
+            </div>
+            <div style="padding: 40px;">
+                <div style="display: inline-block; background: #f1f5f9; color: #475569; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; margin-bottom: 20px;">
+                    {user.get('difficulty', 'Medium').upper()} • {user.get('topic', 'DSA')}
+                </div>
+                <h2 style="color: #1e293b; margin: 0 0 15px 0; font-size: 22px;">{p['title']}</h2>
+                <div style="color: #475569; line-height: 1.7; font-size: 15px; margin-bottom: 25px;">
+                    {p['description']}
+                </div>
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
+                    <h3 style="margin: 0 0 10px 0; font-size: 14px; color: #64748b;">CONSTRAINTS</h3>
+                    <code style="color: #e11d48; font-size: 13px;">{p.get('constraints', 'N/A')}</code>
+                </div>
+                <a href="{DASHBOARD_URL}" style="display: block; text-align: center; background: #2563eb; color: white; padding: 15px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 16px;">Solve Problem</a>
+            </div>
+        </div>
+    </div>
+    """
+    return dispatch_email(email, f"☀️ Morning Challenge: {p['title']}", body)
 
-    if not SENDER_EMAIL or not SENDER_PASSWORD:
-        print("❌ SMTP credentials missing")
-        return False
+def send_solution_dispatch(user, problem_json):
+    p = json.loads(problem_json)
+    email = user['email']
+    
+    body = f"""
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0fdf4; padding: 40px 10px;">
+        <div style="max-width: 600px; margin: auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border: 1px solid #dcfce7;">
+            <div style="background: #166534; padding: 30px; text-align: center;">
+                <h1 style="color: #86efac; margin: 0; font-size: 24px;">SOLUTION ANALYSIS</h1>
+                <p style="color: #bbf7d0; margin-top: 5px;">Day {user.get('streak', 0)} Complete</p>
+            </div>
+            <div style="padding: 40px;">
+                <h2 style="color: #14532d; margin-top: 0;">Optimal Approach</h2>
+                <p style="color: #374151; line-height: 1.6;">{p.get('approach', 'Check the dashboard for detailed logic.')}</p>
+                
+                <div style="background: #1e293b; color: #e2e8f0; padding: 20px; border-radius: 8px; font-family: monospace; font-size: 13px; margin: 20px 0; overflow-x: auto;">
+                    <pre style="margin: 0;">{p.get('code_snippet', '// Solution available in dashboard')}</pre>
+                </div>
+                
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <div style="flex: 1; background: #f0fdf4; padding: 15px; border-radius: 8px; border: 1px solid #bbf7d0;">
+                        <div style="font-size: 11px; color: #166534; font-weight: bold;">TIME</div>
+                        <div style="font-weight: bold; color: #14532d;">{p.get('complexity', {}).get('time', 'O(N)')}</div>
+                    </div>
+                    <div style="flex: 1; background: #f0fdf4; padding: 15px; border-radius: 8px; border: 1px solid #bbf7d0;">
+                        <div style="font-size: 11px; color: #166534; font-weight: bold;">SPACE</div>
+                        <div style="font-weight: bold; color: #14532d;">{p.get('complexity', {}).get('space', 'O(1)')}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    """
+    return dispatch_email(email, f"✅ Solution: {p['title']}", body)
 
+def dispatch_email(to, subject, html_body):
+    if not SENDER_EMAIL or not SENDER_PASSWORD: return False
     msg = MIMEMultipart()
-    msg["Subject"] = subject
-    msg["From"] = f"AlgoPulse <{SENDER_EMAIL}>"
-    msg["To"] = to
-    msg.attach(MIMEText(body, "html"))
-
+    msg['Subject'] = subject
+    msg['From'] = f"AlgoPulse <{SENDER_EMAIL}>"
+    msg['To'] = to
+    msg.attach(MIMEText(html_body, 'html'))
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            server.sendmail(SENDER_EMAIL, to, msg.as_string())
-
-        print(f"✅ Email sent to {to}")
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as s:
+            s.login(SENDER_EMAIL, SENDER_PASSWORD)
+            s.sendmail(SENDER_EMAIL, to, msg.as_string())
         return True
-
     except Exception as e:
-        print(f"❌ Email failed: {e}")
+        print(f"❌ SMTP Error for {to}: {e}")
         return False
 
+# --- Main Execution Logic ---
 
-# ---------------- MAIN ----------------
+def run_dispatch(mode="morning"):
+    print(f"🚀 Running {mode.upper()} Dispatch...")
+    
+    sub_ref = db.collection('artifacts').document(APP_ID).collection('public').document('data').collection('subscribers')
+    subs = sub_ref.where(filter=FieldFilter('status', '==', 'active')).stream()
+    
+    active_subs = []
+    for doc in subs:
+        data = doc.to_dict()
+        data['id'] = doc.id
+        active_subs.append(data)
+    
+    print(f"👥 Subscribers: {len(active_subs)}")
+    
+    # Cache problems by (topic, difficulty) to avoid redundant AI calls
+    problem_cache = {}
+    success_count = 0
+
+    for user in active_subs:
+        topic = user.get('topic', 'Arrays')
+        difficulty = user.get('difficulty', 'Medium')
+        cache_key = f"{topic}_{difficulty}"
+
+        # In solution mode, we need the problem sent in the morning. 
+        # For simplicity, we get the 'last_problem' field from the user doc.
+        if mode == "solution":
+            problem_json = user.get('last_problem_data')
+            if not problem_json: continue
+            
+            if send_solution_dispatch(user, problem_json):
+                success_count += 1
+        else:
+            # Morning Mode: Get new problem
+            if cache_key not in problem_cache:
+                problem_cache[cache_key] = get_problem(topic, difficulty)
+            
+            problem_json = problem_cache[cache_key]
+            if not problem_json: continue
+
+            if send_morning_challenge(user, problem_json):
+                sub_ref.document(user['id']).update({
+                    "last_problem_data": problem_json,
+                    "last_sent": datetime.now(timezone.utc),
+                    "streak": user.get('streak', 0) + 1
+                })
+                success_count += 1
+
+    print(f"🏁 Finished. Successful sends: {success_count}")
+
 if __name__ == "__main__":
-
-    print("🚀 MODE: MORNING")
-
-    sub_ref = (
-        db.collection("artifacts").document(APP_ID)
-        .collection("public").document("data")
-        .collection("subscribers")
-    )
-
-    subscribers = [doc.to_dict() for doc in sub_ref.stream() if doc.to_dict().get("status") == "active"]
-
-    print(f"👥 Active subscribers: {len(subscribers)}")
-
-    for user in subscribers:
-
-        topic = user.get("topic", "BinarySearch")
-        difficulty = user.get("difficulty", "Medium")
-
-        problem_data = get_problem(topic, difficulty)
-
-        if not problem_data:
-            print("❌ Could not fetch problem")
-            continue
-
-        p = json.loads(problem_data)
-
-        problem_url = f"https://leetcode.com/problems/{p['slug']}/"
-
-        body = f"""
-        <h2>{p['title']}</h2>
-        <p><b>Difficulty:</b> {difficulty}</p>
-        <p>{p['description']}</p>
-        <br>
-        <a href="{problem_url}">Solve on LeetCode</a>
-        """
-
-        dispatch_email(user["email"], f"{p['title']} ({difficulty})", body)
-
-    print("\n--- AlgoPulse Finished ---")
+    mode = sys.argv[1] if len(sys.argv) > 1 else "morning"
+    run_dispatch(mode)
