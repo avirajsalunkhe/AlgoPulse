@@ -15,16 +15,24 @@ from email.mime.multipart import MIMEMultipart
 # --- Configuration ---
 APP_ID = "leetcode-dsa-bot"
 DASHBOARD_URL = "https://avirajsalunkhe.github.io/algo-pulse" 
+
+# Mapping secrets based on provided screenshot
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY") 
 SENDER_EMAIL = os.getenv("EMAIL_SENDER")
 SENDER_PASSWORD = os.getenv("EMAIL_PASSWORD")
+FIREBASE_SERVICE_ACCOUNT = os.getenv("FIREBASE_SERVICE_ACCOUNT")
+# FIREBASE_CONFIG is available in secrets but not explicitly required for Admin SDK initialization
 
 # --- Firebase Initialization ---
-service_account_json = os.getenv("FIREBASE_SERVICE_ACCOUNT")
 if not firebase_admin._apps:
     try:
-        cred = credentials.Certificate(json.loads(service_account_json))
+        if not FIREBASE_SERVICE_ACCOUNT:
+            print("❌ FIREBASE_SERVICE_ACCOUNT secret is missing.")
+            sys.exit(1)
+        
+        cred_dict = json.loads(FIREBASE_SERVICE_ACCOUNT)
+        cred = credentials.Certificate(cred_dict)
         firebase_admin.initialize_app(cred)
         print("✅ Firebase initialized successfully.")
     except Exception as e:
@@ -54,6 +62,7 @@ def clean_json_string(raw_str):
 def fetch_from_gemini(prompt):
     """Attempt to get content from Gemini API with fallback for different versions."""
     if not GEMINI_API_KEY: 
+        print("⚠️ GEMINI_API_KEY missing.")
         return None
     
     strategies = [
@@ -90,7 +99,7 @@ def fetch_from_gemini(prompt):
 def fetch_from_groq(prompt):
     """Highly reliable fallback using Llama 3 on Groq."""
     if not GROQ_API_KEY: 
-        print("ℹ️ Groq API Key not found. Ensure it is mapped in secrets.")
+        print("ℹ️ GROQ_API_KEY not found. Ensure it is mapped in secrets.")
         return None
     
     print(f"🚀 Attempting Groq Fallback (Llama-3)...")
@@ -240,7 +249,7 @@ def send_solution_dispatch(user, problem_json):
 
 def dispatch_email(to, subject, html_body):
     if not SENDER_EMAIL or not SENDER_PASSWORD: 
-        print(f"❌ Missing credentials for {to}")
+        print(f"❌ Missing email credentials for {to}")
         return False
     msg = MIMEMultipart()
     msg['Subject'] = subject
