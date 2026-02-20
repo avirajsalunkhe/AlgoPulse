@@ -59,7 +59,8 @@ def call_ai_with_fallback(prompt, is_json=True):
         print("🤖 Attempting Gemini...")
         for delay in [1, 2, 4, 8, 16]:
             try:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key={GEMINI_API_KEY}"
+                # Updated to a more stable model version to avoid 404
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
                 payload = {
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {"temperature": 0.7}
