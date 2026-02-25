@@ -374,3 +374,41 @@ While AlgoPulse does not expose traditional REST endpoints from the Python backe
 # Summary
 
 AlgoPulse integrates Python, Firebase, AI APIs, and GitHub Actions to provide a reliable, automated daily DSA learning cycle. Its codebase features robust automation, real-time UI, and serverless deployment, maximizing learning consistency for all subscribers.
+
+---
+
+## 👥Contribution
+
+AlgoPulse is a collaborative effort, and valuable contributions were made toward refining automation reliability, UI improvements, and deployment workflows.
+
+### Contributors
+
+#### **Aditya**
+
+* **GitHub**: [https://github.com/adii8009](https://github.com/adii8009)
+* Contributed to workflow optimization and automation reliability.
+* Assisted in refining GitHub Actions scheduling logic and environment configuration handling.
+* Helped improve deployment stability and secret management best practices.
+
+#### **Vedant**
+
+* **GitHub**: [https://github.com/vveeddntt](https://github.com/vveeddntt)
+* Contributed to frontend dashboard enhancements and UI responsiveness.
+* Assisted in refining Firestore integration logic for subscription management.
+* Supported testing, debugging, and overall system validation.
+
+---
+
+### Collaboration Impact
+
+Their contributions strengthened:
+
+* ⚙️ Automation consistency
+* 🔐 Secure configuration handling
+* 🎨 Dashboard usability & responsiveness
+* 🚀 Deployment stability
+
+AlgoPulse continues to evolve through collaboration, iteration, and shared innovation.
+
+---
+
