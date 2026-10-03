@@ -1,4 +1,4 @@
-# AlgoPulse ✨ Project README
+# AlgoPulse ✨ 
 
 AlgoPulse is an automated engine for delivering daily LeetCode data structures and algorithms (DSA) challenges and their solutions to subscribers. This documentation covers all code, configuration, and infrastructure files in the repository, describing their role and mechanics.
 
